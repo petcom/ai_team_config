@@ -39,6 +39,18 @@ issues:
     - queue      # Created, not started
     - active     # In progress
     - completed  # Done
+  qa_field:
+    name: "QA"
+    values:
+      - PENDING
+      - IN_PROGRESS
+      - BLOCKED
+      - PASS
+    transition_rules:
+      - Dev sets QA=PENDING for QA handoff and after re-fix.
+      - QA sets QA=IN_PROGRESS when verification starts.
+      - QA sets QA=BLOCKED when findings remain.
+      - QA sets QA=PASS only when approving completion.
 
   # Naming convention
   naming: "{TEAM_PREFIX}-ISS-{NNN}_{brief_description}.md"
@@ -155,6 +167,7 @@ qa_gate:
     - Only QA sub-teams can complete issues
     - QA completion requires gate evidence and a PASS verdict
     - Gate evidence must include test execution + manual review checklist
+    - Issue QA field must be PASS before Status is set to COMPLETE
 
 # -----------------------------------------------------------------------------
 # Issue Lifecycle — 5 Phase Workflow
@@ -197,6 +210,7 @@ issue_lifecycle:
       order: 3
       description: "Validate the implementation against completion criteria"
       steps:
+        - "Set issue QA field to IN_PROGRESS before running checks"
         - "npx tsc --noEmit — 0 errors"
         - "npm run test:unit — all tests pass"
         - "Run integration and UAT checks (or document explicit skip reason)"
@@ -207,6 +221,9 @@ issue_lifecycle:
         - All completion gate checks pass
         - Code review criteria satisfied
       on_failure: "Return to implementation phase"
+      transitions:
+        qa_field_on_failure: "BLOCKED"
+        qa_field_on_success: "PASS"
 
     completion:
       order: 4

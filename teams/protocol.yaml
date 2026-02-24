@@ -30,6 +30,18 @@ issues:
     - queue
     - active
     - completed
+  qa_field:
+    name: "QA"
+    values:
+      - PENDING
+      - IN_PROGRESS
+      - BLOCKED
+      - PASS
+    transition_rules:
+      - Dev sets QA=PENDING for QA handoff and after re-fix.
+      - QA sets QA=IN_PROGRESS when verification starts.
+      - QA sets QA=BLOCKED when findings remain.
+      - QA sets QA=PASS only when approving completion.
   naming: "{ISSUE_PREFIX}-{NNN}_{brief_description}.md"
 
 # -----------------------------------------------------------------------------
@@ -63,6 +75,7 @@ qa_gate:
     - Only QA sub-teams can complete issues
     - QA completion requires gate evidence and a PASS verdict
     - Gate evidence must include test execution + manual review checklist
+    - Issue QA field must be PASS before Status is set to COMPLETE
   message_closure:
     preferred: "dev_communication/{team}/inbox/completed/"
     fallback: "dev_communication/archive/"
@@ -115,6 +128,10 @@ issue_lifecycle:
       description: "Independent recheck of all gate criteria"
       owner: "qa sub-team"
       can_reject: true
+      transitions:
+        qa_field_on_enter: "IN_PROGRESS"
+        qa_field_on_fail: "BLOCKED"
+        qa_field_on_pass: "PASS"
       checklist: "ai_team_config/teams/checklists/qa-gate.yaml"
       required_evidence:
         - test execution status (unit/integration/uat)

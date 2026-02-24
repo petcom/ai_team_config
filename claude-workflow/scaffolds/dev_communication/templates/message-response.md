@@ -5,6 +5,7 @@
 **Date:** YYYY-MM-DD
 **Type:** Response
 **In-Response-To:** {original_message_filename}
+**QA:** PENDING | IN_PROGRESS | BLOCKED | PASS | N/A
 
 ## Content
 

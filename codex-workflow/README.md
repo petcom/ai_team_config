@@ -100,6 +100,13 @@ ai_team_config/scripts/qa_poll_cycle.sh --once --manual-ok --approve
 ai_team_config/scripts/qa_poll_cycle.sh --watch --interval 240
 ```
 
+Issue QA state field:
+
+- `QA: PENDING` -> ready for QA start or dev re-fix recheck
+- `QA: IN_PROGRESS` -> QA verification running
+- `QA: BLOCKED` -> QA findings remain; dev action required
+- `QA: PASS` -> QA accepted (required before `Status: COMPLETE`)
+
 ## Team profile usage inside skills
 
 Skills should resolve team defaults from:

@@ -126,6 +126,12 @@ Shared QA checklist:
 Agent-runnable QA cycle script:
 - `ai_team_config/scripts/qa_poll_cycle.sh`
 
+Issue QA state field (required):
+- `QA: PENDING` -> awaiting QA start or dev re-fix recheck
+- `QA: IN_PROGRESS` -> QA verification running
+- `QA: BLOCKED` -> QA findings remain
+- `QA: PASS` -> QA accepted; required before `Status: COMPLETE`
+
 Examples:
 
 ```bash

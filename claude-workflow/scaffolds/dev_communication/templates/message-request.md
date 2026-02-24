@@ -5,6 +5,7 @@
 **Date:** YYYY-MM-DD
 **Priority:** Critical | High | Medium | Low
 **Type:** Request
+**QA:** PENDING | IN_PROGRESS | BLOCKED | PASS | N/A
 
 ## Content
 
