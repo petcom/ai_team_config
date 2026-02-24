@@ -231,6 +231,78 @@ extract_issue_id_from_file() {
   sed -E 's/^([A-Za-z]+-[A-Za-z]+-[0-9]+).*/\1/' <<<"$base"
 }
 
+extract_issue_field_value() {
+  local issue_file="$1"
+  local field="$2"
+  awk -v field="$field" '
+    {
+      if ($0 ~ "^##[[:space:]]*" field ":[[:space:]]*") {
+        line=$0
+        sub("^##[[:space:]]*" field ":[[:space:]]*", "", line)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+        print line
+        exit
+      }
+      if ($0 ~ "^\\*\\*" field ":\\*\\*[[:space:]]*") {
+        line=$0
+        sub("^\\*\\*" field ":\\*\\*[[:space:]]*", "", line)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+        print line
+        exit
+      }
+    }
+  ' "$issue_file"
+}
+
+upsert_issue_field() {
+  local issue_file="$1"
+  local field="$2"
+  local value="$3"
+  local default_style="${4:-heading}" # heading|bold
+  local dry_run_note="${5:-}"
+
+  if [[ "$dry_run" -eq 1 ]]; then
+    log "Dry run: would set ${field}=${value} in ${issue_file}${dry_run_note:+ (${dry_run_note})}"
+    return 0
+  fi
+
+  local temp_file
+  temp_file="$(mktemp)"
+
+  awk -v field="$field" -v value="$value" -v default_style="$default_style" '
+    BEGIN { updated=0 }
+    {
+      if (!updated && $0 ~ "^##[[:space:]]*" field ":[[:space:]]*") {
+        print "## " field ": " value
+        updated=1
+      } else if (!updated && $0 ~ "^\\*\\*" field ":\\*\\*[[:space:]]*") {
+        print "**" field ":** " value
+        updated=1
+      } else {
+        print $0
+      }
+    }
+    END {
+      if (!updated) {
+        print ""
+        if (default_style == "bold") {
+          print "**" field ":** " value
+        } else {
+          print "## " field ": " value
+        }
+      }
+    }
+  ' "$issue_file" >"$temp_file"
+
+  mv "$temp_file" "$issue_file"
+}
+
+set_issue_qa_state() {
+  local issue_file="$1"
+  local qa_state="$2"
+  upsert_issue_field "$issue_file" "QA" "$qa_state" "heading" "qa-state transition"
+}
+
 append_qa_verification_section() {
   local issue_file="$1"
   local issue_id="$2"
@@ -270,41 +342,16 @@ EOF
 
 set_issue_complete_status() {
   local issue_file="$1"
-  if [[ "$dry_run" -eq 1 ]]; then
-    log "Dry run: would set Status: COMPLETE in $issue_file"
-    return 0
-  fi
-
-  local temp_file
-  temp_file="$(mktemp)"
-
-  awk '
-    BEGIN { updated=0 }
-    {
-      if (!updated && $0 ~ /^\*\*Status:\*\*/) {
-        print "**Status:** COMPLETE"
-        updated=1
-      } else {
-        print $0
-      }
-    }
-    END {
-      if (!updated) {
-        print ""
-        print "**Status:** COMPLETE"
-      }
-    }
-  ' "$issue_file" >"$temp_file"
-
-  mv "$temp_file" "$issue_file"
+  upsert_issue_field "$issue_file" "Status" "COMPLETE" "heading" "completion"
 }
 
 emit_dev_feedback_message() {
   local issue_id="$1"
   local verdict="$2"
-  local summary="$3"
-  local unblock="$4"
-  local out_file="$5"
+  local qa_state="$3"
+  local summary="$4"
+  local unblock="$5"
+  local out_file="$6"
   if [[ "$dry_run" -eq 1 ]]; then
     log "Dry run: would write QA feedback message to $out_file"
     return 0
@@ -318,6 +365,7 @@ emit_dev_feedback_message() {
 **Date:** $(day_stamp)
 **Priority:** High
 **Type:** Response
+**QA:** ${qa_state}
 
 ## Content
 
@@ -365,7 +413,13 @@ move_related_messages() {
 
 issue_has_qa_marker() {
   local issue_file="$1"
-  grep -Eiq "$ready_regex" "$issue_file"
+  if grep -Eiq "$ready_regex" "$issue_file"; then
+    return 0
+  fi
+
+  local qa_state
+  qa_state="$(extract_issue_field_value "$issue_file" "QA" | tr '[:lower:]' '[:upper:]')"
+  [[ "$qa_state" == "PENDING" ]]
 }
 
 issue_already_reviewed() {
@@ -413,6 +467,7 @@ evaluate_issue() {
   local integration_result="" integration_reason=""
   local uat_result="" uat_reason=""
 
+  set_issue_qa_state "$issue_file" "IN_PROGRESS"
   run_gate "typecheck" "$typecheck_cmd" "$run_log_dir" typecheck_result typecheck_reason
   run_gate "unit" "$unit_cmd" "$run_log_dir" unit_result unit_reason
   run_gate "integration" "$integration_cmd" "$run_log_dir" integration_result integration_reason
@@ -450,10 +505,12 @@ evaluate_issue() {
   fi
 
   local verdict="Blocked"
+  local qa_state="BLOCKED"
   local recommendations="Address failed gates and attach evidence in issue QA section."
   local unblock_note="All required QA gates pass and manual review is completed."
   if [[ "${#blockers[@]}" -eq 0 ]]; then
     verdict="Pass"
+    qa_state="PASS"
     recommendations="No blockers identified. Keep tests and evidence attached to issue."
     unblock_note="N/A"
   else
@@ -461,6 +518,7 @@ evaluate_issue() {
     unblock_note="$(printf '%s; ' "${blockers[@]}" | sed 's/; $//')"
   fi
 
+  set_issue_qa_state "$issue_file" "$qa_state"
   append_qa_verification_section \
     "$issue_file" "$issue_id" "$verdict" \
     "$typecheck_result" "$unit_result" "$integration_result" "$uat_result" \
@@ -468,11 +526,12 @@ evaluate_issue() {
 
   if [[ "$emit_dev_message" -eq 1 ]]; then
     local feedback_file="$inbox_dir/$(day_stamp)_$(slugify "${issue_id}_qa_${verdict}")_$(date -u +%H%M%S).md"
-    emit_dev_feedback_message "$issue_id" "$verdict" "$recommendations" "$unblock_note" "$feedback_file"
+    emit_dev_feedback_message "$issue_id" "$verdict" "$qa_state" "$recommendations" "$unblock_note" "$feedback_file"
     log "Wrote QA feedback message: $feedback_file"
   fi
 
   if [[ "$verdict" == "Pass" && "$approve_mode" -eq 1 ]]; then
+    set_issue_qa_state "$issue_file" "PASS"
     set_issue_complete_status "$issue_file"
     if [[ "$dry_run" -eq 1 ]]; then
       log "Dry run: would move $issue_file to $issues_completed_dir/"
@@ -520,7 +579,7 @@ process_cycle() {
       continue
     fi
 
-    if ! issue_has_qa_marker "$candidate"; then
+    if [[ -z "$issue_filter" ]] && ! issue_has_qa_marker "$candidate"; then
       continue
     fi
 
