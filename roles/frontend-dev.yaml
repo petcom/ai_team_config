@@ -14,6 +14,7 @@ team_id: frontend
 function: dev
 issue_prefix: UI-ISS
 role_guidance: dev_communication/shared/guidance/FRONTEND_DEV_ROLE_GUIDANCE.md
+workflow: ai_team_config/teams/checklists/dev-issue-lifecycle.yaml
 
 # What this role owns
 owns:

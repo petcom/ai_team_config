@@ -1,0 +1,182 @@
+# =============================================================================
+# Dev Issue Lifecycle Checklist (Backend-Dev)
+# =============================================================================
+#
+# The full iterative loop from issue pickup to QA acceptance.
+# Covers the dev side of the lifecycle — QA gate criteria are in qa-gate.yaml.
+#
+# Usage: "Poll comms and follow dev-issue-lifecycle-backend until QA acceptance"
+#
+# Mirrors dev-issue-lifecycle.yaml (Frontend-Dev) with backend-specific
+# contract ownership, test commands, and implementation concerns.
+#
+# =============================================================================
+
+version: "1.0.0"
+name: Dev Issue Lifecycle (Backend)
+applies_to:
+  - backend-dev
+
+# ---------------------------------------------------------------------------
+# Phase 0: Comms Poll & Triage
+# ---------------------------------------------------------------------------
+# Run at the start of each iteration. Detects new work, QA rejections,
+# frontend contract requests, and blockers.
+
+phase_0_comms:
+  name: Poll comms and triage
+  trigger: start_of_iteration
+  steps:
+    - Read backend/inbox/ for new messages
+    - Read backend/issues/queue/ for unstarted issues
+    - Read backend/issues/active/ for in-progress or QA-blocked issues
+    - Classify each inbox message (contract_request, qa_finding, frontend_bug_report, status_update)
+    - Match QA findings and frontend requests to active issues
+    - Unblock issues where dependencies are resolved
+    - Pick next issue to work (lowest ID unblocked, or QA-rejected issue first)
+  sources:
+    - dev_communication/backend/inbox
+    - dev_communication/backend/issues/queue
+    - dev_communication/backend/issues/active
+
+# ---------------------------------------------------------------------------
+# Phase 1: Contracts & Cross-Team Setup
+# ---------------------------------------------------------------------------
+# Backend DEFINES contracts. When frontend requests a new contract or change,
+# update the shared contract DTOs first, then implement against them.
+
+phase_1_contracts:
+  name: Define or update contracts
+  steps:
+    - Read frontend contract requests from backend/inbox/
+    - Read dev_communication/shared/contracts/types/ for existing DTOs
+    - If new/changed endpoints are needed, update contract DTOs in shared/contracts/types/
+    - Send contract confirmation to frontend/inbox/ with DTO details and endpoint paths
+    - If no contract changes needed, proceed to implementation
+  rule: >
+    Backend owns contract definitions. Frontend consumes them.
+    Update the shared contract DTO first, then implement the endpoint.
+    Never ship an endpoint whose response shape differs from the contract DTO.
+  reference: ADR-DEV-004-CONSUME-CONTRACTS-DIRECTLY-NO-NORMALIZERS
+
+# ---------------------------------------------------------------------------
+# Phase 2: Context Loading
+# ---------------------------------------------------------------------------
+
+phase_2_context:
+  name: Load context
+  steps:
+    - Load relevant ADRs from dev_communication/shared/architecture/decisions/
+    - Load memory patterns from memory/patterns/
+    - Read the issue file for acceptance criteria and prior QA findings
+    - Identify which ADRs apply by change type (see ADR-DEV-002)
+    - Review Mongoose schema and existing service layer for the affected domain
+  skill: /context
+
+# ---------------------------------------------------------------------------
+# Phase 3: Implementation
+# ---------------------------------------------------------------------------
+
+phase_3_implement:
+  name: Implement
+  steps:
+    - Move issue from queue/ to active/ (if not already active)
+    - Plan if complex (schema migration, multi-service change, new middleware)
+    - Update Mongoose models/schemas as needed
+    - Implement service layer logic
+    - Implement route handlers
+    - Ensure response shapes match contract DTOs exactly
+    - Write tests for new functionality as part of implementation
+    - If QA-rejected, address specific QA findings before re-verifying
+  rules:
+    - New functionality must have corresponding tests
+    - Response shapes must match shared contract DTOs
+    - Use markModified() for Mongoose Mixed-type fields
+    - Validate at system boundaries (request input, external APIs)
+    - Do not add backward-compatibility shims or deprecated fields
+
+# ---------------------------------------------------------------------------
+# Phase 4: Dev Verification Gate (BLOCKING)
+# ---------------------------------------------------------------------------
+# All must pass. Do not hand off to QA with failures.
+
+phase_4_verify:
+  name: Dev verification gate
+  blocking: true
+  checks:
+    typecheck:
+      command: npx tsc --noEmit
+      criteria: 0 errors
+    unit_tests:
+      command: npm run test:unit
+      criteria: all pass
+    integration_tests:
+      command: npm run test:integration
+      criteria: all pass
+    tests_exist:
+      criteria: new functionality has corresponding tests
+  on_failure: fix and re-run — do not proceed
+
+# ---------------------------------------------------------------------------
+# Phase 5: Documentation & Handoff
+# ---------------------------------------------------------------------------
+
+phase_5_document:
+  name: Document and hand off to QA
+  steps:
+    - Create session file at memory/sessions/{date}-{issue-slug}.md
+    - Append resolution notes to the issue file
+    - If contract was added/changed, confirm shared/contracts/types/ is updated
+    - If new pattern discovered, update memory/patterns/ or /adr suggest
+    - If frontend impact, send message to frontend/inbox/ via /comms send
+  handoff_rule: >
+    Issue stays in active/ with Status: ACTIVE.
+    Do NOT move to completed/. Do NOT set Status: COMPLETE.
+    QA owns Phase 6 (verification) and Phase 7 (completion).
+
+# ---------------------------------------------------------------------------
+# Phase 6: Wait for QA
+# ---------------------------------------------------------------------------
+# Dev does not act here. QA runs their qa-gate.yaml checklist.
+# This phase ends when QA writes back to backend/inbox/ or updates
+# the issue file with findings.
+
+phase_6_wait_for_qa:
+  name: Wait for QA verdict
+  action: poll
+  poll_sources:
+    - dev_communication/backend/inbox
+    - dev_communication/backend/issues/active
+  look_for:
+    - QA verdict appended to issue file (Pass, Blocked, Need More Info)
+    - QA message in backend/inbox/ referencing the issue
+  outcomes:
+    pass: QA moves issue to completed/ — done
+    blocked: return to phase_0 with QA findings, iterate
+    need_more_info: return to phase_0, respond to QA questions
+
+# ---------------------------------------------------------------------------
+# Phase 7: Iterate Until Acceptance
+# ---------------------------------------------------------------------------
+# On QA rejection, loop back to Phase 0. The inbox will contain QA findings.
+# Address findings, re-verify, re-document, and wait for QA again.
+
+phase_7_iterate:
+  name: Iterate on QA findings
+  loop: phase_0_comms
+  exit_condition: >
+    All issues in backend/issues/active/ have been moved to completed/
+    by QA, OR no more issues remain in queue/ or active/.
+
+# ---------------------------------------------------------------------------
+# Automation
+# ---------------------------------------------------------------------------
+
+automation:
+  commands:
+    typecheck: npx tsc --noEmit
+    unit: npm run test:unit
+    integration: npm run test:integration
+    uat: npm run test:uat
+  issue_prefix: API-ISS
+  session_path: memory/sessions/{date}-{issue-slug}.md

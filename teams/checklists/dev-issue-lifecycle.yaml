@@ -1,0 +1,172 @@
+# =============================================================================
+# Dev Issue Lifecycle Checklist (Frontend-Dev)
+# =============================================================================
+#
+# The full iterative loop from issue pickup to QA acceptance.
+# Covers the dev side of the lifecycle — QA gate criteria are in qa-gate.yaml.
+#
+# Usage: "Poll comms and follow dev-issue-lifecycle until QA acceptance"
+#
+# =============================================================================
+
+version: "1.0.0"
+name: Dev Issue Lifecycle
+applies_to:
+  - frontend-dev
+
+# ---------------------------------------------------------------------------
+# Phase 0: Comms Poll & Triage
+# ---------------------------------------------------------------------------
+# Run at the start of each iteration. Detects new work, QA rejections,
+# backend responses, and blockers.
+
+phase_0_comms:
+  name: Poll comms and triage
+  trigger: start_of_iteration
+  steps:
+    - Read frontend/inbox/ for new messages
+    - Read frontend/issues/queue/ for unstarted issues
+    - Read frontend/issues/active/ for in-progress or QA-blocked issues
+    - Classify each inbox message (contract_update, qa_finding, backend_response, status_update)
+    - Match QA findings and backend responses to active issues
+    - Unblock issues where dependencies are resolved
+    - Pick next issue to work (lowest ID unblocked, or QA-rejected issue first)
+  sources:
+    - dev_communication/frontend/inbox
+    - dev_communication/frontend/issues/queue
+    - dev_communication/frontend/issues/active
+
+# ---------------------------------------------------------------------------
+# Phase 1: Contracts & Cross-Team Setup
+# ---------------------------------------------------------------------------
+# Before writing any code. If the issue touches API endpoints, define or
+# verify contracts first and send requests to backend.
+
+phase_1_contracts:
+  name: Check and request contracts
+  steps:
+    - Read dev_communication/shared/contracts/types/ for existing DTOs
+    - If new/changed endpoints are needed, draft contract and send to backend/inbox/
+    - Wait for backend acknowledgment before implementing against new contracts
+    - If contracts already exist and are sufficient, proceed
+  rule: >
+    Never invent local type shapes that differ from contract DTOs.
+    Never write normalizers, transforms, or compatibility shims.
+    If the contract is insufficient, send a message — don't work around it.
+  reference: ADR-DEV-004-CONSUME-CONTRACTS-DIRECTLY-NO-NORMALIZERS
+
+# ---------------------------------------------------------------------------
+# Phase 2: Context Loading
+# ---------------------------------------------------------------------------
+
+phase_2_context:
+  name: Load context
+  steps:
+    - Load relevant ADRs from dev_communication/shared/architecture/decisions/
+    - Load memory patterns from memory/patterns/
+    - Read the issue file for acceptance criteria and prior QA findings
+    - Identify which ADRs apply by change type (see ADR-DEV-002)
+  skill: /context
+
+# ---------------------------------------------------------------------------
+# Phase 3: Implementation
+# ---------------------------------------------------------------------------
+
+phase_3_implement:
+  name: Implement
+  steps:
+    - Move issue from queue/ to active/ (if not already active)
+    - Plan if complex (multi-file, architectural decision, multiple approaches)
+    - Implement following existing patterns and ADRs
+    - Consume contract DTOs directly — no normalizers
+    - Write tests for new functionality as part of implementation
+    - If QA-rejected, address specific QA findings before re-verifying
+  rules:
+    - New functionality must have corresponding tests
+    - Follow FSD architecture (entities, features, pages, shared, widgets)
+    - Consume contracts directly (ADR-DEV-004)
+
+# ---------------------------------------------------------------------------
+# Phase 4: Dev Verification Gate (BLOCKING)
+# ---------------------------------------------------------------------------
+# All must pass. Do not hand off to QA with failures.
+
+phase_4_verify:
+  name: Dev verification gate
+  blocking: true
+  checks:
+    typecheck:
+      command: npx tsc --noEmit
+      criteria: 0 errors
+    unit_tests:
+      command: npx vitest run
+      criteria: all pass
+    integration_tests:
+      command: npx vitest run --config vitest.integration.config.ts
+      criteria: all pass
+    tests_exist:
+      criteria: new functionality has corresponding tests
+  on_failure: fix and re-run — do not proceed
+
+# ---------------------------------------------------------------------------
+# Phase 5: Documentation & Handoff
+# ---------------------------------------------------------------------------
+
+phase_5_document:
+  name: Document and hand off to QA
+  steps:
+    - Create session file at memory/sessions/{date}-{issue-slug}.md
+    - Append resolution notes to the issue file
+    - If new pattern discovered, update memory/patterns/ or /adr suggest
+    - If cross-team impact, send message via /comms send
+  handoff_rule: >
+    Issue stays in active/ with Status: ACTIVE.
+    Do NOT move to completed/. Do NOT set Status: COMPLETE.
+    QA owns Phase 6 (verification) and Phase 7 (completion).
+
+# ---------------------------------------------------------------------------
+# Phase 6: Wait for QA
+# ---------------------------------------------------------------------------
+# Dev does not act here. QA runs their qa-gate.yaml checklist.
+# This phase ends when QA writes back to frontend/inbox/ or updates
+# the issue file with findings.
+
+phase_6_wait_for_qa:
+  name: Wait for QA verdict
+  action: poll
+  poll_sources:
+    - dev_communication/frontend/inbox
+    - dev_communication/frontend/issues/active
+  look_for:
+    - QA verdict appended to issue file (Pass, Blocked, Need More Info)
+    - QA message in frontend/inbox/ referencing the issue
+  outcomes:
+    pass: QA moves issue to completed/ — done
+    blocked: return to phase_0 with QA findings, iterate
+    need_more_info: return to phase_0, respond to QA questions
+
+# ---------------------------------------------------------------------------
+# Phase 7: Iterate Until Acceptance
+# ---------------------------------------------------------------------------
+# On QA rejection, loop back to Phase 0. The inbox will contain QA findings.
+# Address findings, re-verify, re-document, and wait for QA again.
+
+phase_7_iterate:
+  name: Iterate on QA findings
+  loop: phase_0_comms
+  exit_condition: >
+    All issues in frontend/issues/active/ have been moved to completed/
+    by QA, OR no more issues remain in queue/ or active/.
+
+# ---------------------------------------------------------------------------
+# Automation
+# ---------------------------------------------------------------------------
+
+automation:
+  commands:
+    typecheck: npx tsc --noEmit
+    unit: npx vitest run
+    integration: npx vitest run --config vitest.integration.config.ts
+    uat: npx playwright test --project=chromium
+  issue_prefix: UI-ISS
+  session_path: memory/sessions/{date}-{issue-slug}.md

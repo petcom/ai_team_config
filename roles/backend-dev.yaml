@@ -8,6 +8,7 @@ team_id: backend
 function: dev
 issue_prefix: API-ISS
 role_guidance: dev_communication/shared/guidance/BACKEND_DEV_ROLE_GUIDANCE.md
+workflow: ai_team_config/teams/checklists/dev-issue-lifecycle-backend.yaml
 
 owns:
   - Implementing API endpoints, business logic, and data models
