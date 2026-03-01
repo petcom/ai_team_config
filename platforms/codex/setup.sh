@@ -6,7 +6,7 @@
 # Creates .codex-workflow/ config files and symlinks canonical skills + team
 # configs from ai_team_config/. Also links team.json config.
 #
-# Usage: ./ai_team_config/platforms/codex/setup.sh <project_root> <team_id> <role_id>
+# Usage: ./ai_team_config/platforms/codex/setup.sh <project_root> <team_id>
 #
 # =============================================================================
 
@@ -14,7 +14,6 @@ set -euo pipefail
 
 PROJECT_ROOT="${1:-.}"
 TEAM_ID="${2:-}"
-ROLE_ID="${3:-}"
 SKILL_SOURCE="ai_team_config/skills"
 TEAM_CONFIG_SOURCE="ai_team_config/team-configs"
 CODEX_DIR="${PROJECT_ROOT}/.codex-workflow"

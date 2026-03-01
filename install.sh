@@ -5,18 +5,20 @@
 #
 # Interactive installer that sets up a project with:
 #   1. Team selection (frontend, backend, qa, etc.)
-#   2. Sub-team role selection (e.g., frontend-dev, frontend-qa)
-#   3. Platform setup (claude, codex, or both)
-#   4. Memory vault scaffolding
-#   5. Dev communication scaffolding (if not already present)
+#   2. Platform setup (claude, codex, or both)
+#   3. Memory vault scaffolding
+#   4. Dev communication scaffolding (if not already present)
+#
+# Sub-role (e.g., frontend-dev vs frontend-qa) is NOT selected at install time.
+# It is chosen at session start by the agent and held in conversation memory.
 #
 # Usage:
 #   ./ai_team_config/install.sh                    # Interactive mode
 #   ./ai_team_config/install.sh --team frontend    # Skip team prompt
-#   ./ai_team_config/install.sh --team frontend --role frontend-dev --platform claude
-#   ./ai_team_config/install.sh --team frontend --role frontend-dev --platform both --devcomm create
-#   ./ai_team_config/install.sh --team frontend --role frontend-dev --platform both --refresh-threshold 5
-#   ./ai_team_config/install.sh --team frontend --role frontend-dev --platform both --force-refresh-links
+#   ./ai_team_config/install.sh --team frontend --platform claude
+#   ./ai_team_config/install.sh --team frontend --platform both --devcomm create
+#   ./ai_team_config/install.sh --team frontend --platform both --refresh-threshold 5
+#   ./ai_team_config/install.sh --team frontend --platform both --force-refresh-links
 #   ./ai_team_config/install.sh --non-interactive   # Skip project.yaml prompts (just copy scaffold)
 #
 # =============================================================================
@@ -36,7 +38,6 @@ NC='\033[0m' # No Color
 
 # Parse arguments
 TEAM_ID=""
-ROLE_ID=""
 PLATFORM=""
 DEVCOMM_MODE="create"
 DEVCOMM_LINK_TARGET=""
@@ -48,14 +49,13 @@ RUN_ID="$(date +%Y%m%d-%H%M%S)"
 while [[ $# -gt 0 ]]; do
   case $1 in
     --team) TEAM_ID="$2"; shift 2 ;;
-    --role) ROLE_ID="$2"; shift 2 ;;
     --platform) PLATFORM="$2"; shift 2 ;;
     --devcomm) DEVCOMM_MODE="$2"; shift 2 ;;
     --refresh-threshold) REFRESH_THRESHOLD="$2"; shift 2 ;;
     --force-refresh-links) FORCE_REFRESH_LINKS=1; shift 1 ;;
     --non-interactive) NON_INTERACTIVE=1; shift 1 ;;
     --help|-h)
-      echo "Usage: $0 [--team TEAM] [--role ROLE] [--platform claude|codex|both] [--devcomm create|skip|symlink:/abs/path] [--refresh-threshold N] [--force-refresh-links] [--non-interactive]"
+      echo "Usage: $0 [--team TEAM] [--platform claude|codex|both] [--devcomm create|skip|symlink:/abs/path] [--refresh-threshold N] [--force-refresh-links] [--non-interactive]"
       echo ""
       echo "  --force-refresh-links   Refresh symlinks AND regenerate platform docs (CLAUDE.md, AGENTS.md)"
       echo "                          Existing files are backed up as .legacy-<timestamp>"
@@ -348,42 +348,9 @@ if [ "$TEAM_JSON" = "NOT_FOUND" ]; then
   exit 1
 fi
 
-# ---- Step 2: Select sub-team role ----
-SUB_TEAMS=$(python3 -c "
-import json
-team = json.loads('$TEAM_JSON')
-for sid, sub in team.get('sub_teams', {}).items():
-    print(f'{sid}|{sub[\"name\"]}|{sub.get(\"function\", \"\")}')
-")
-
-if [ -z "$ROLE_ID" ]; then
-  echo -e "${GREEN}Step 2: Select your sub-team role${NC}"
-  echo "  (This defines what this agent controller window operates as)"
-  echo ""
-  i=1
-  declare -a ROLE_IDS
-  while IFS='|' read -r rid rname rfunc; do
-    ROLE_IDS+=("$rid")
-    echo "  ${i}) ${rname} (${rid}) — ${rfunc}"
-    ((i++))
-  done <<< "$SUB_TEAMS"
-  echo ""
-  read -rp "Enter role number: " ROLE_NUM
-
-  if [[ "$ROLE_NUM" -ge 1 && "$ROLE_NUM" -le "${#ROLE_IDS[@]}" ]]; then
-    ROLE_ID="${ROLE_IDS[$((ROLE_NUM-1))]}"
-  else
-    echo -e "${RED}Invalid selection.${NC}"
-    exit 1
-  fi
-fi
-
-echo -e "  Selected role: ${YELLOW}${ROLE_ID}${NC}"
-echo ""
-
-# ---- Step 3: Select platform ----
+# ---- Step 2: Select platform ----
 if [ -z "$PLATFORM" ]; then
-  echo -e "${GREEN}Step 3: Select platform${NC}"
+  echo -e "${GREEN}Step 2: Select platform${NC}"
   echo ""
   echo "  1) Claude Code"
   echo "  2) Codex"
@@ -714,7 +681,7 @@ fi
 if [ "$PLATFORM" = "codex" ] || [ "$PLATFORM" = "both" ]; then
   echo ""
   echo "  --- Codex ---"
-  FORCE_REFRESH_LINKS="$FORCE_REFRESH_LINKS" RUN_ID="$RUN_ID" bash "${SCRIPT_DIR}/platforms/codex/setup.sh" "$PROJECT_ROOT" "$TEAM_ID" "$ROLE_ID"
+  FORCE_REFRESH_LINKS="$FORCE_REFRESH_LINKS" RUN_ID="$RUN_ID" bash "${SCRIPT_DIR}/platforms/codex/setup.sh" "$PROJECT_ROOT" "$TEAM_ID"
 fi
 echo ""
 
@@ -753,14 +720,11 @@ output_file = sys.argv[2]
 
 # Env vars passed from shell
 team_json = os.environ.get('_RENDER_TEAM_JSON', '{}')
-role_id = os.environ.get('_RENDER_ROLE_ID', '')
 team_id = os.environ.get('_RENDER_TEAM_ID', '')
 project_root = os.environ.get('_RENDER_PROJECT_ROOT', '.')
 script_dir = os.environ.get('_RENDER_SCRIPT_DIR', '.')
 
 team = json.loads(team_json)
-sub = team.get('sub_teams', {}).get(role_id, {})
-function = sub.get('function', 'dev')
 project_name = os.path.basename(os.path.abspath(project_root))
 
 # --- Read project.yaml for project-specific content ---
@@ -827,32 +791,14 @@ if os.path.isfile(project_yaml_path):
 if project_vars.get('project_name'):
     project_name = project_vars['project_name']
 
-# --- Read role yaml dev_gate ---
-role_file = os.path.join(script_dir, 'roles', f'{role_id}.yaml')
-gate_checks = []
-if os.path.isfile(role_file):
-    in_gate = False
-    with open(role_file) as f:
-        for line in f:
-            stripped = line.strip()
-            if stripped.startswith('dev_gate:') or stripped.startswith('qa_gate:'):
-                in_gate = True
-                continue
-            if in_gate:
-                if stripped.startswith('- '):
-                    item = stripped[2:].strip().strip('"').strip("'")
-                    gate_checks.append(f'- [ ] {item}')
-                elif stripped and not stripped.startswith('#'):
-                    break
-
-if not gate_checks:
-    gate_checks = [
-        '- [ ] Typecheck passes (0 errors)',
-        '- [ ] All tests pass',
-        '- [ ] New functionality has corresponding tests',
-        '- [ ] Session file created',
-        '- [ ] Resolution notes appended to issue file',
-    ]
+# --- Gate checks (generic — role-specific gates are in roles/*.yaml, loaded at session start) ---
+gate_checks = [
+    '- [ ] Typecheck passes (0 errors)',
+    '- [ ] All tests pass',
+    '- [ ] New functionality has corresponding tests',
+    '- [ ] Session file created',
+    '- [ ] Resolution notes appended to issue file',
+]
 
 # --- Build file paths ---
 file_paths = f"""- **Procedures:** `ai_team_config/procedures/` — universal dev/QA lifecycle docs
@@ -894,7 +840,6 @@ RENDER_PY
 
 # Export render context as env vars for the Python renderer
 export _RENDER_TEAM_JSON="$TEAM_JSON"
-export _RENDER_ROLE_ID="$ROLE_ID"
 export _RENDER_TEAM_ID="$TEAM_ID"
 export _RENDER_PROJECT_ROOT="$PROJECT_ROOT"
 export _RENDER_SCRIPT_DIR="$SCRIPT_DIR"
@@ -915,19 +860,12 @@ if [ -f "$MEMORY_TEMPLATE" ] && [ ! -f "$MEMORY_TARGET" ]; then
 fi
 
 # Clean up render env vars
-unset _RENDER_TEAM_JSON _RENDER_ROLE_ID _RENDER_TEAM_ID _RENDER_PROJECT_ROOT _RENDER_SCRIPT_DIR
+unset _RENDER_TEAM_JSON _RENDER_TEAM_ID _RENDER_PROJECT_ROOT _RENDER_SCRIPT_DIR
 
 echo ""
 
 # ---- Step 7: Write team.json ----
 echo -e "${GREEN}Step 7: Writing team configuration...${NC}"
-
-ROLE_FILE="${SCRIPT_DIR}/roles/${ROLE_ID}.yaml"
-if [ -f "$ROLE_FILE" ]; then
-  echo "  Role definition found: ${ROLE_FILE}"
-else
-  echo -e "  ${YELLOW}No role definition file for ${ROLE_ID}. Skills will infer from team context.${NC}"
-fi
 
 # Write a JSON team config for easy consumption by any platform
 # This is team-level only — sub-role is resolved at session start via prompt
@@ -1006,9 +944,17 @@ else
   done
 fi
 
-if [ ! -f "$ROLE_FILE" ]; then
-  report_issue "Missing role definition: ai_team_config/roles/${ROLE_ID}.yaml"
-fi
+# Check that role definitions exist for all sub-roles in this team
+while IFS='|' read -r sub_role_id _sub_name _sub_func; do
+  if [ ! -f "${SCRIPT_DIR}/roles/${sub_role_id}.yaml" ]; then
+    report_issue "Missing role definition: ai_team_config/roles/${sub_role_id}.yaml"
+  fi
+done < <(python3 -c "
+import json
+team = json.loads('$TEAM_JSON')
+for sid, sub in team.get('sub_teams', {}).items():
+    print(f'{sid}|{sub.get(\"name\",\"\")  }|{sub.get(\"function\",\"\")}')
+")
 
 for proc_file in polling-workflow.md dev-lifecycle.md qa-lifecycle.md comms-protocol.md; do
   if [ ! -f "${SCRIPT_DIR}/procedures/${proc_file}" ]; then
@@ -1091,7 +1037,7 @@ echo "  Compliance issues detected: ${COMPLIANCE_ISSUES}"
 if [ "$COMPLIANCE_ISSUES" -ge "$REFRESH_THRESHOLD" ]; then
   echo -e "  ${YELLOW}Recommendation: refresh setup (issues >= threshold ${REFRESH_THRESHOLD}).${NC}"
   echo "  Suggested command:"
-  echo "    ./ai_team_config/install.sh --team ${TEAM_ID} --role ${ROLE_ID} --platform ${PLATFORM} --devcomm create"
+  echo "    ./ai_team_config/install.sh --team ${TEAM_ID} --platform ${PLATFORM} --devcomm create"
 fi
 echo ""
 
@@ -1101,7 +1047,6 @@ echo -e "${BLUE}  Installation Complete${NC}"
 echo -e "${BLUE}==========================================${NC}"
 echo ""
 echo -e "  Team:      ${YELLOW}${TEAM_ID}${NC}"
-echo -e "  Role:      ${YELLOW}${ROLE_ID}${NC}"
 echo -e "  Platform:  ${YELLOW}${PLATFORM}${NC}"
 echo -e "  Memory:    ${GREEN}${MEMORY_DIR}${NC}"
 echo ""
@@ -1115,9 +1060,9 @@ echo "    Team comms:          dev_communication/${TEAM_ID}/"
 echo "    Role definitions:    ai_team_config/roles/"
 echo "    Team config:         team.json"
 echo ""
-echo "  Sub-role is now selected at session start (no file to switch)."
+echo "  Sub-role is selected at session start (held in memory, not a file)."
 echo "  To re-run the installer:"
-echo "    ./ai_team_config/install.sh --team ${TEAM_ID} --role ${ROLE_ID} --platform ${PLATFORM}"
+echo "    ./ai_team_config/install.sh --team ${TEAM_ID} --platform ${PLATFORM}"
 echo ""
 echo "  Available skills: /comms /adr /memory /context /reflect /refine"
 echo ""

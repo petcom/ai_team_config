@@ -24,23 +24,22 @@ Setup documentation and blueprint for the agent workflow system. This directory 
 ## Quick Start
 
 ```bash
-# Interactive — prompts for team, role, and platform
+# Interactive — prompts for team and platform
 ./ai_team_config/install.sh
 
 # Non-interactive
-./ai_team_config/install.sh --team frontend --role frontend-dev --platform both --devcomm create
+./ai_team_config/install.sh --team frontend --platform both --devcomm create
 
 # Tune refresh recommendation threshold (default: 5 issues)
-./ai_team_config/install.sh --team frontend --role frontend-dev --platform both --refresh-threshold 8
+./ai_team_config/install.sh --team frontend --platform both --refresh-threshold 8
 
 # Force-refresh conflicting link targets (backs up old files)
-./ai_team_config/install.sh --team frontend --role frontend-dev --platform both --force-refresh-links
+./ai_team_config/install.sh --team frontend --platform both --force-refresh-links
 ```
 
 The installer will:
 1. Ask which **team** to install (frontend, backend, qa, etc.)
-2. Ask which **sub-team role** this agent window operates as (e.g., frontend-dev, frontend-qa)
-3. Ask which **platform** (Claude Code, Codex, or both)
+2. Ask which **platform** (Claude Code, Codex, or both)
 4. Scaffold `./memory/` and seed missing baseline files if needed
 5. Create `./dev_communication/` from `ai_team_config/scaffolds/dev_communication/` (or use `--devcomm` override)
 6. Install skill + team-config symlinks for the selected platform
