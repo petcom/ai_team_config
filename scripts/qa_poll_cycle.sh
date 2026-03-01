@@ -9,8 +9,8 @@ Poll QA-ready items and run QA gate verification for frontend_qa/backend_qa role
 
 Options:
   --repo-root PATH          Project root (default: current directory)
-  --team TEAM               Team id (frontend|backend). Auto-detected from active-role.json if omitted.
-  --role ROLE               Role id (frontend-qa|backend-qa). Auto-detected from active-role.json if omitted.
+  --team TEAM               Team id (frontend|backend). Auto-detected from team.json if omitted.
+  --role ROLE               Role id (frontend-qa|backend-qa). Defaults to {team_id}-qa if omitted.
   --interval SECONDS        Poll interval when --watch is used (default: 240)
   --idle-stop-seconds N     Stop watch mode after N seconds with no inbox/active issue changes (default: 1800)
   --watch                   Run continuously
@@ -94,13 +94,11 @@ if ! [[ "$idle_stop_seconds" =~ ^[0-9]+$ ]]; then
 fi
 
 repo_root="$(cd "$repo_root" && pwd)"
-active_role_file="$repo_root/active-role.json"
+team_json_file="$repo_root/team.json"
 
-if [[ -z "$role_id" || -z "$team_id" ]]; then
-  if [[ -f "$active_role_file" ]]; then
-    detected_role="$(extract_json_field "$active_role_file" "role_id" || true)"
-    detected_team="$(extract_json_field "$active_role_file" "team_id" || true)"
-    role_id="${role_id:-$detected_role}"
+if [[ -z "$team_id" ]]; then
+  if [[ -f "$team_json_file" ]]; then
+    detected_team="$(extract_json_field "$team_json_file" "team_id" || true)"
     team_id="${team_id:-$detected_team}"
   fi
 fi
@@ -109,8 +107,13 @@ if [[ -z "$team_id" && -n "$role_id" ]]; then
   team_id="${role_id%%-*}"
 fi
 
+# Default role to {team_id}-qa since this script only runs for QA roles
+if [[ -z "$role_id" && -n "$team_id" ]]; then
+  role_id="${team_id}-qa"
+fi
+
 if [[ -z "$role_id" || -z "$team_id" ]]; then
-  err "Could not resolve role/team. Provide --role and --team or set active-role.json."
+  err "Could not resolve role/team. Provide --role and --team or set team.json."
   exit 1
 fi
 

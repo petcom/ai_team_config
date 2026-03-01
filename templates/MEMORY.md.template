@@ -3,7 +3,7 @@
 ## Polling = Dev Lifecycle (MANDATORY)
 
 When user says "start polling" / "poll" / "begin polling":
-1. Read `active-role.json` → determine role
+1. Confirm sub-role is established (prompted at session start). Read `team.json` for paths.
 2. Read `ai_team_config/procedures/polling-workflow.md` → route to correct lifecycle
 3. Execute the FULL lifecycle loop (dev-lifecycle.md or qa-lifecycle.md)
 
@@ -18,8 +18,9 @@ When user says "start polling" / "poll" / "begin polling":
 
 ## Role & Team
 
-- Active role defined in `active-role.json`
-- Role details in `ai_team_config/roles/{role_id}.yaml`
+- Team config defined in `team.json` (team-level paths, allowed sub-roles)
+- Sub-role selected at session start (held in memory, not written to disk)
+- Role details in `ai_team_config/roles/{sub-role}.yaml`
 - Lifecycle checklists in `ai_team_config/teams/checklists/`
 - Procedures in `ai_team_config/procedures/`
 

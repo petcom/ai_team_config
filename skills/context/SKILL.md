@@ -49,7 +49,7 @@ Fast orientation for session start or context recovery:
 
 4. **Load Memory** — search `memory/entities/` and `memory/context/` for topic keywords
 
-5. **Load Backend Context Packs (backend only)** — if `active-role.json` indicates backend team, load relevant notes from `memory/context/backend/` (for example restart checklist or backend issue snapshots)
+5. **Load Backend Context Packs (backend only)** — if `team.json` indicates backend team, load relevant notes from `memory/context/backend/` (for example restart checklist or backend issue snapshots)
 
 6. **Load Role Guidance** — read the role guidance file for the active sub-team from `dev_communication/shared/guidance/`
 

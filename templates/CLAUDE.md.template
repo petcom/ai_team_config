@@ -4,11 +4,30 @@
 
 **STOP before any implementation.** Read this section completely.
 
+### Session Start — Sub-Role Selection
+
+At the start of every session, before any work:
+
+1. Read `team.json` to load the team context (paths, allowed sub-roles)
+2. If your sub-role has NOT been established this session, prompt the user:
+   > Which sub-role for this session? (list from `team.json` `allowed_sub_roles`)
+3. Read `ai_team_config/roles/{selected-sub-role}.yaml` to load:
+   - `function` (dev or qa) — determines your lifecycle
+   - `issue_prefix` — determines issue naming
+   - `owns` / `does_not_own` — determines your boundaries
+   - `procedures` — determines which procedure docs to follow
+   - `comms.from_header` — determines your message identity
+4. Hold this in conversation context for the session. Do NOT write it to a file.
+5. Confirm to the user: "Operating as **{role_name}** for this session."
+
+This allows multiple CLI agents to run concurrently from the same repo
+without file contention — each agent holds its sub-role in memory only.
+
 ### Polling = Full Lifecycle (not passive file watching)
 
 When the user says **"start polling"**, **"poll"**, or **"begin polling"**:
 
-1. Read `active-role.json` to determine your role
+1. Confirm sub-role is established (see Session Start above). Read `team.json` for paths.
 2. Read your lifecycle procedure: `ai_team_config/procedures/polling-workflow.md`
 3. Execute the FULL lifecycle loop — not just a file check
 

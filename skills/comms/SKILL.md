@@ -17,14 +17,11 @@ Manage inter-team communication, issues, and coordination.
 ## Team Context Resolution
 
 Determine your team identity before any action:
-1. Read `./active-role.json` (canonical project role file)
-2. If unavailable, check platform mirrors:
-   - `.codex-workflow/config/active-role.json`
-   - `.codex-workflow/config/active-agent-role.json` (legacy alias)
-   - `.claude/active-role.json`
-3. If role file is unavailable, fallback to `.codex-workflow/config/active-team.json` and use `team_profile.default_paths`
-4. If still unavailable, infer from `dev_communication/` team directories
-5. Use the active `team_id` to resolve paths (inbox, issues, status)
+1. Read `./team.json` for team paths (`inbox`, `issues_queue`, `issues_active`, etc.)
+2. Use the sub-role established at session start for identity (`from_header`, `issue_prefix`).
+   If sub-role not yet established this session, prompt the user to select one from `team.json` `allowed_sub_roles`.
+3. Read `ai_team_config/roles/{sub-role}.yaml` for role-specific fields (`function`, `issue_prefix`, `comms.from_header`)
+4. Use the `team_id` from `team.json` to resolve paths (inbox, issues, status)
 
 Path variables used below:
 - `{my_inbox}` — `dev_communication/{my_team}/inbox/`

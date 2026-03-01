@@ -859,8 +859,8 @@ file_paths = f"""- **Procedures:** `ai_team_config/procedures/` — universal de
 - **Dev communication:** `dev_communication/` — issues, messaging, architecture, coordination
 - **Memory vault:** `memory/` — patterns, entities, context, sessions
 - **Team inbox:** `dev_communication/{team_id}/inbox/`
-- **Role definition:** `ai_team_config/roles/{role_id}.yaml`
-- **Active role:** `active-role.json`"""
+- **Team config:** `team.json`
+- **Role definitions:** `ai_team_config/roles/`"""
 
 # --- Read template ---
 with open(template_file) as f:
@@ -919,8 +919,8 @@ unset _RENDER_TEAM_JSON _RENDER_ROLE_ID _RENDER_TEAM_ID _RENDER_PROJECT_ROOT _RE
 
 echo ""
 
-# ---- Step 7: Write active-role.json ----
-echo -e "${GREEN}Step 7: Writing active role configuration...${NC}"
+# ---- Step 7: Write team.json ----
+echo -e "${GREEN}Step 7: Writing team configuration...${NC}"
 
 ROLE_FILE="${SCRIPT_DIR}/roles/${ROLE_ID}.yaml"
 if [ -f "$ROLE_FILE" ]; then
@@ -929,34 +929,29 @@ else
   echo -e "  ${YELLOW}No role definition file for ${ROLE_ID}. Skills will infer from team context.${NC}"
 fi
 
-# Write a JSON active-role for easy consumption by any platform
+# Write a JSON team config for easy consumption by any platform
+# This is team-level only — sub-role is resolved at session start via prompt
 python3 -c "
 import json
 team = json.loads('''$TEAM_JSON''')
-sub = team.get('sub_teams', {}).get('$ROLE_ID', {})
-role = {
-    'role_id': '$ROLE_ID',
-    'role_name': sub.get('name', '$ROLE_ID'),
+team_config = {
     'team_id': '$TEAM_ID',
     'team_name': team.get('name', '$TEAM_ID'),
-    'function': sub.get('function', ''),
-    'issue_prefix': sub.get('issue_prefix', team.get('issue_prefix', '')),
-    'role_guidance': sub.get('role_guidance', ''),
-    'allowed_roles': list(team.get('sub_teams', {}).keys()),
+    'allowed_sub_roles': list(team.get('sub_teams', {}).keys()),
+    'role_definitions': 'ai_team_config/roles/',
     'paths': team.get('default_paths', {})
 }
-with open('${PROJECT_ROOT}/active-role.json', 'w') as f:
-    json.dump(role, f, indent=2)
-print('  Wrote: active-role.json')
+with open('${PROJECT_ROOT}/team.json', 'w') as f:
+    json.dump(team_config, f, indent=2)
+print('  Wrote: team.json')
 "
 
 if [ -d "${PROJECT_ROOT}/.codex-workflow/config" ]; then
-  safe_link "${PROJECT_ROOT}/active-role.json" "${PROJECT_ROOT}/.codex-workflow/config/active-role.json" ".codex-workflow/config/active-role.json" || true
-  safe_link "${PROJECT_ROOT}/active-role.json" "${PROJECT_ROOT}/.codex-workflow/config/active-agent-role.json" ".codex-workflow/config/active-agent-role.json" || true
+  safe_link "${PROJECT_ROOT}/team.json" "${PROJECT_ROOT}/.codex-workflow/config/team.json" ".codex-workflow/config/team.json" || true
 fi
 
 if [ -d "${PROJECT_ROOT}/.claude" ]; then
-  safe_link "${PROJECT_ROOT}/active-role.json" "${PROJECT_ROOT}/.claude/active-role.json" ".claude/active-role.json" || true
+  safe_link "${PROJECT_ROOT}/team.json" "${PROJECT_ROOT}/.claude/team.json" ".claude/team.json" || true
 fi
 echo ""
 
@@ -1117,11 +1112,12 @@ echo "    Templates:           ai_team_config/templates/"
 echo "    Memory vault:        memory/"
 echo "    ADRs & specs:        dev_communication/shared/architecture/"
 echo "    Team comms:          dev_communication/${TEAM_ID}/"
-echo "    Role definition:     ai_team_config/roles/${ROLE_ID}.yaml"
-echo "    Active role:         active-role.json"
+echo "    Role definitions:    ai_team_config/roles/"
+echo "    Team config:         team.json"
 echo ""
-echo "  To switch this window's role:"
-echo "    ./ai_team_config/install.sh --team ${TEAM_ID} --role <new-role> --platform ${PLATFORM}"
+echo "  Sub-role is now selected at session start (no file to switch)."
+echo "  To re-run the installer:"
+echo "    ./ai_team_config/install.sh --team ${TEAM_ID} --role ${ROLE_ID} --platform ${PLATFORM}"
 echo ""
 echo "  Available skills: /comms /adr /memory /context /reflect /refine"
 echo ""

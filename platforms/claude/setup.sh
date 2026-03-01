@@ -4,7 +4,7 @@
 # =============================================================================
 #
 # Creates .claude/commands/ skill symlinks, .claude/team-configs/ symlinks,
-# and a platform active-role alias to the canonical project role file.
+# and a platform team.json alias to the canonical project team config file.
 #
 # Usage: ./ai_team_config/platforms/claude/setup.sh <project_root>
 #
@@ -90,7 +90,7 @@ for team_cfg in "$PROJECT_ROOT/$TEAM_CONFIG_SOURCE"/*; do
   safe_link "$team_cfg" "$link_path" "team-configs/${cfg_name}" || true
 done
 
-safe_link "${PROJECT_ROOT}/active-role.json" "${PROJECT_ROOT}/.claude/active-role.json" "active-role.json" || true
+safe_link "${PROJECT_ROOT}/team.json" "${PROJECT_ROOT}/.claude/team.json" "team.json" || true
 
 echo "Claude Code skills installed."
 echo ""

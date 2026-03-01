@@ -4,7 +4,7 @@
 #
 # The full iterative loop from dev handoff detection to issue completion.
 # Used by both Frontend-QA and Backend-QA. Team-specific values are resolved
-# via {team} placeholder (frontend or backend) from active-role.json.
+# via {team} placeholder (frontend or backend) from team.json + session sub-role.
 #
 # Usage: "Poll comms and follow qa-gate until all active issues are verified"
 #

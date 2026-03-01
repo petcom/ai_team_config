@@ -6,7 +6,7 @@
 # multi-phase implementation plans, crosswalk requests, and QA iterations.
 #
 # Usage: "Start polling" / "Poll" / "Begin polling"
-#   → Read active-role.json, then execute this workflow continuously.
+#   → Confirm sub-role at session start, then execute this workflow continuously.
 #
 # Two nested loops:
 #   OUTER: Poll → Assess → Plan → Contracts → [inner loop per issue]

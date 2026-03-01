@@ -10,9 +10,10 @@ development or QA workflow executed in a continuous loop.
 
 ## Step 1: Determine Your Role
 
-Read `active-role.json` (project root) to determine:
+Confirm sub-role is established (prompted at session start). Read `team.json` for team paths.
+Read `ai_team_config/roles/{sub-role}.yaml` for:
 - `role_id` — which lifecycle to follow
-- `team_id` — which communication directories to check
+- `team_id` — which communication directories to check (also available in `team.json`)
 - `function` — `dev` or `qa`
 
 ## Step 2: Load Your Lifecycle

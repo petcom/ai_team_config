@@ -4,7 +4,7 @@
 # =============================================================================
 #
 # Creates .codex-workflow/ config files and symlinks canonical skills + team
-# configs from ai_team_config/. Also links active-role config aliases.
+# configs from ai_team_config/. Also links team.json config.
 #
 # Usage: ./ai_team_config/platforms/codex/setup.sh <project_root> <team_id> <role_id>
 #
@@ -97,11 +97,10 @@ for team_cfg in "$PROJECT_ROOT/$TEAM_CONFIG_SOURCE"/*; do
   safe_link "$team_cfg" "$link_path" "team-configs/${cfg_name}" || true
 done
 
-# Canonical active role contract shared across platforms
-safe_link "${PROJECT_ROOT}/active-role.json" "${CONFIG_DIR}/active-role.json" "config/active-role.json" || true
-safe_link "${PROJECT_ROOT}/active-role.json" "${CONFIG_DIR}/active-agent-role.json" "config/active-agent-role.json" || true
+# Canonical team config shared across platforms
+safe_link "${PROJECT_ROOT}/team.json" "${CONFIG_DIR}/team.json" "config/team.json" || true
 
-# Write active-team.json from profiles.json
+# Write active-team.json from profiles.json (team-level only, no sub-role identity)
 if [ -n "$TEAM_ID" ]; then
   PROFILES_FILE="${PROJECT_ROOT}/ai_team_config/teams/profiles.json"
   if command -v python3 &>/dev/null && [ -f "$PROFILES_FILE" ]; then
@@ -117,15 +116,9 @@ manifest = {
     'pack_name': 'codex-workflow',
     'team_id': '$TEAM_ID',
     'team_profile': team,
+    'allowed_sub_roles': list(team.get('sub_teams', {}).keys()),
     'project_root': '.'
 }
-if '$ROLE_ID':
-    sub = team.get('sub_teams', {}).get('$ROLE_ID', {})
-    manifest['agent_role'] = {
-        'id': '$ROLE_ID',
-        'name': sub.get('name', '$ROLE_ID'),
-        'description': f\"{sub.get('function', 'dev')} role for {team['name']}\"
-    }
 with open('$CONFIG_DIR/active-team.json', 'w') as f:
     json.dump(manifest, f, indent=2)
 print('  Wrote: config/active-team.json')

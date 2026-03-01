@@ -1,5 +1,4 @@
 .claude/
 codex-workflow/config/active-team.json
-codex-workflow/config/active-role.json
-codex-workflow/config/active-agent-role.json
+codex-workflow/config/team.json
 codex-workflow/scripts/__pycache__/

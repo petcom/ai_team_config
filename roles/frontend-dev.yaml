@@ -3,8 +3,8 @@
 # =============================================================================
 #
 # Load this file to configure an agent controller window as a Frontend-Dev.
-# The active role file (active-role.json) is written by the installer and
-# references this definition.
+# The team config (team.json) is written by the installer. This role definition
+# is loaded at session start when the user selects their sub-role.
 #
 # =============================================================================
 

@@ -19,7 +19,7 @@ Setup documentation and blueprint for the agent workflow system. This directory 
 | `./memory/` | Agent runtime memory (sessions, patterns, entities) | `/memory`, `/context`, `/reflect` skills |
 | `./dev_communication/shared/architecture/` | ADRs, specs, contracts | `/adr` skill |
 | `./dev_communication/{team}/` | Team comms, issues, inbox | `/comms` skill |
-| `./active-role.json` | Current window's sub-team identity | Installer |
+| `./team.json` | Team-level config (paths, allowed sub-roles) | Installer |
 
 ## Quick Start
 
@@ -44,7 +44,7 @@ The installer will:
 4. Scaffold `./memory/` and seed missing baseline files if needed
 5. Create `./dev_communication/` from `ai_team_config/scaffolds/dev_communication/` (or use `--devcomm` override)
 6. Install skill + team-config symlinks for the selected platform
-7. Write canonical `active-role.json` and mirror it into platform config paths
+7. Write canonical `team.json` and mirror it into platform config paths
 8. Run a compliance audit and recommend refresh if drift exceeds threshold
 
 ## Directory Structure
@@ -113,10 +113,9 @@ Each role file (`roles/<role-id>.yaml`) defines:
 - **Verification gates** (dev roles) or **evidence standards** (QA roles)
 - **Comms behavior** (From header, check scope, allowed recipients)
 
-The active role contract is canonicalized to `./active-role.json` in the project root. Platform mirrors point to the same file:
-- `.claude/active-role.json`
-- `.codex-workflow/config/active-role.json`
-- `.codex-workflow/config/active-agent-role.json` (legacy alias)
+The team config is canonicalized to `./team.json` in the project root (team-level only, no sub-role identity). Sub-role is resolved at session start via prompt and held in memory only. Platform mirrors point to the same file:
+- `.claude/team.json`
+- `.codex-workflow/config/team.json`
 
 ## QA Polling Runner
 
@@ -145,26 +144,18 @@ ai_team_config/scripts/qa_poll_cycle.sh --once --manual-ok --approve
 ai_team_config/scripts/qa_poll_cycle.sh --watch --interval 240
 ```
 
-### Switching Roles
-
-To change this window's role without re-running the full installer:
-
-```bash
-./ai_team_config/install.sh --team frontend --role frontend-qa --platform claude
-```
-
 ## Multi-Window Setup
 
-Each agent controller window gets its own role:
+Each agent controller window selects its sub-role at session start:
 
 ```
-Window 1:  ./ai_team_config/install.sh --team frontend --role frontend-dev --platform claude
-Window 2:  ./ai_team_config/install.sh --team frontend --role frontend-qa --platform claude
+Window 1:  Start session → select "frontend-dev"
+Window 2:  Start session → select "frontend-qa"
 ```
 
 Both windows share the same `./memory/` and `./dev_communication/` directories. They coordinate through the `/comms` skill, using distinct `From` headers (`Frontend-Dev` vs `Frontend-QA`).
 
-**Note:** Since role identity is unified to one canonical file (`./active-role.json`), switching one window's role switches it for the whole repo checkout. For true concurrent multi-window operation with different roles, use separate worktrees/checkouts.
+Since sub-role identity is held in each agent's conversation memory (not written to a file), multiple concurrent agents can operate from the same checkout without file contention. No worktrees or separate checkouts needed.
 
 ## Obsidian Vault Structure
 
