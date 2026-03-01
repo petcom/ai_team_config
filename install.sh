@@ -179,8 +179,7 @@ with open(yaml_file) as f:
     if current_key is not None:
         project_vars[current_key] = '\n'.join(current_lines).strip()
 
-required = ['project_description', 'spec_documents', 'architecture_overview',
-            'code_conventions', 'quick_reference']
+required = ['project_description', 'spec_documents', 'quick_reference']
 unfilled = []
 for field in required:
     val = project_vars.get(field, '').strip()
@@ -261,8 +260,6 @@ out_path  = os.environ['_PY_OUT']
 name      = os.environ.get('_PY_NAME', '')
 desc      = os.environ.get('_PY_DESC', '')
 specs     = os.environ.get('_PY_SPECS', '')
-arch      = os.environ.get('_PY_ARCH', '')
-conv      = os.environ.get('_PY_CONV', '')
 quick     = os.environ.get('_PY_QUICK', '')
 
 def multiline_block(value):
@@ -280,8 +277,6 @@ with open(out_path, 'w') as f:
 
     f.write("project_description: " + multiline_block(desc))
     f.write("\nspec_documents: " + multiline_block(specs))
-    f.write("\narchitecture_overview: " + multiline_block(arch))
-    f.write("\ncode_conventions: " + multiline_block(conv))
     f.write("\nquick_reference: " + multiline_block(quick))
 WRITE_PY
 }
@@ -463,7 +458,7 @@ else
     if [ -f "$PROJECT_YAML_SCAFFOLD" ]; then
       cp "$PROJECT_YAML_SCAFFOLD" "$PROJECT_YAML"
     fi
-    YAML_STATUS="NEEDS_SETUP:project_description,spec_documents,architecture_overview,code_conventions,quick_reference"
+    YAML_STATUS="NEEDS_SETUP:project_description,spec_documents,quick_reference"
   fi
 
   if [ "$YAML_STATUS" = "COMPLETE" ]; then
@@ -480,8 +475,6 @@ else
     _EXISTING_PROJECT_NAME=""
     _EXISTING_PROJECT_DESCRIPTION=""
     _EXISTING_SPEC_DOCUMENTS=""
-    _EXISTING_ARCHITECTURE_OVERVIEW=""
-    _EXISTING_CODE_CONVENTIONS=""
     _EXISTING_QUICK_REFERENCE=""
     eval "$(python3 - "$PROJECT_YAML" <<'LOAD_PY'
 import re, sys, base64
@@ -522,7 +515,7 @@ with open(yaml_file) as f:
 
 # Emit shell assignments with base64-encoded values
 for key in ['project_name', 'project_description', 'spec_documents',
-            'architecture_overview', 'code_conventions', 'quick_reference']:
+            'quick_reference']:
     val = project_vars.get(key, '')
     encoded = base64.b64encode(val.encode()).decode()
     print(f'_EXISTING_{key.upper()}="{encoded}"')
@@ -570,30 +563,6 @@ LOAD_PY
     fi
     echo ""
 
-    # architecture_overview
-    if needs_field "architecture_overview"; then
-      echo -e "  ${GREEN}Architecture overview${NC} (layers, patterns, key abstractions):"
-      FINAL_ARCH="$(collect_multiline "Architecture Overview" "Describe your project architecture: layers, patterns, key abstractions.")"
-      if [ -z "$FINAL_ARCH" ]; then
-        FINAL_ARCH="$(_decode_b64 "$_EXISTING_ARCHITECTURE_OVERVIEW")"
-      fi
-    else
-      FINAL_ARCH="$(_decode_b64 "$_EXISTING_ARCHITECTURE_OVERVIEW")"
-    fi
-    echo ""
-
-    # code_conventions
-    if needs_field "code_conventions"; then
-      echo -e "  ${GREEN}Code conventions${NC} (path aliases, naming, file organization):"
-      FINAL_CONV="$(collect_multiline "Code Conventions" "Describe path aliases, naming conventions, file organization.")"
-      if [ -z "$FINAL_CONV" ]; then
-        FINAL_CONV="$(_decode_b64 "$_EXISTING_CODE_CONVENTIONS")"
-      fi
-    else
-      FINAL_CONV="$(_decode_b64 "$_EXISTING_CODE_CONVENTIONS")"
-    fi
-    echo ""
-
     # quick_reference
     if needs_field "quick_reference"; then
       DEFAULT_QUICK='```bash
@@ -624,11 +593,9 @@ npx tsc --noEmit     # Type check
     export _PY_NAME="$FINAL_NAME"
     export _PY_DESC="$FINAL_DESC"
     export _PY_SPECS="$FINAL_SPECS"
-    export _PY_ARCH="$FINAL_ARCH"
-    export _PY_CONV="$FINAL_CONV"
     export _PY_QUICK="$FINAL_QUICK"
     write_project_yaml
-    unset _PY_OUT _PY_NAME _PY_DESC _PY_SPECS _PY_ARCH _PY_CONV _PY_QUICK
+    unset _PY_OUT _PY_NAME _PY_DESC _PY_SPECS _PY_QUICK
 
     echo -e "  ${GREEN}Wrote: project.yaml${NC}"
   fi
@@ -670,6 +637,70 @@ else
   esac
 fi
 echo ""
+
+# ---- Step 5a: ADR bootstrap ----
+SHARED_DIR="${PROJECT_ROOT}/dev_communication/shared"
+ADR_SCAFFOLD="${SCRIPT_DIR}/scaffolds/dev_communication/shared"
+
+if [ -d "$SHARED_DIR" ]; then
+  echo -e "${GREEN}Step 5a: Bootstrapping ADR directory structure...${NC}"
+
+  # Always seed architecture scaffolds (idempotent — won't overwrite)
+  for rel_file in \
+    "architecture/index.md" \
+    "architecture/decision-log.md" \
+    "architecture/templates/adr-template.md"
+  do
+    src_file="${ADR_SCAFFOLD}/${rel_file}"
+    dst_file="${SHARED_DIR}/${rel_file}"
+    if [ -f "$src_file" ] && [ ! -f "$dst_file" ]; then
+      mkdir -p "$(dirname "$dst_file")"
+      cp "$src_file" "$dst_file"
+      echo "  Seeded: dev_communication/shared/${rel_file}"
+    fi
+  done
+
+  # Starter ADR — interactive prompt or skip in non-interactive
+  STARTER_ADR_SRC="${ADR_SCAFFOLD}/architecture/decisions/ADR-001-INITIAL-ARCHITECTURE.md"
+  STARTER_ADR_DST="${SHARED_DIR}/architecture/decisions/ADR-001-INITIAL-ARCHITECTURE.md"
+  if [ -f "$STARTER_ADR_SRC" ] && [ ! -f "$STARTER_ADR_DST" ]; then
+    if [ "$NON_INTERACTIVE" = "1" ]; then
+      echo "  Skipped starter ADR (non-interactive)."
+    else
+      read -rp "  Seed a starter ADR (ADR-001-INITIAL-ARCHITECTURE)? [y/N]: " SEED_ADR </dev/tty
+      if [[ "$SEED_ADR" =~ ^[Yy] ]]; then
+        mkdir -p "$(dirname "$STARTER_ADR_DST")"
+        cp "$STARTER_ADR_SRC" "$STARTER_ADR_DST"
+        echo "  Seeded: dev_communication/shared/architecture/decisions/ADR-001-INITIAL-ARCHITECTURE.md"
+      else
+        echo "  Skipped starter ADR."
+      fi
+    fi
+  fi
+
+  # Feature development checklist — interactive prompt or auto-seed in non-interactive
+  CHECKLIST_SRC="${ADR_SCAFFOLD}/guidance/FEATURE_DEVELOPMENT_CHECKLIST.md"
+  CHECKLIST_DST="${SHARED_DIR}/guidance/FEATURE_DEVELOPMENT_CHECKLIST.md"
+  if [ -f "$CHECKLIST_SRC" ] && [ ! -f "$CHECKLIST_DST" ]; then
+    if [ "$NON_INTERACTIVE" = "1" ]; then
+      mkdir -p "$(dirname "$CHECKLIST_DST")"
+      cp "$CHECKLIST_SRC" "$CHECKLIST_DST"
+      echo "  Seeded: dev_communication/shared/guidance/FEATURE_DEVELOPMENT_CHECKLIST.md"
+    else
+      read -rp "  Seed a feature development checklist? [Y/n]: " SEED_CHECKLIST </dev/tty
+      if [[ "$SEED_CHECKLIST" =~ ^[Nn] ]]; then
+        echo "  Skipped development checklist."
+      else
+        mkdir -p "$(dirname "$CHECKLIST_DST")"
+        cp "$CHECKLIST_SRC" "$CHECKLIST_DST"
+        echo "  Seeded: dev_communication/shared/guidance/FEATURE_DEVELOPMENT_CHECKLIST.md"
+      fi
+    fi
+  fi
+
+  echo "  Done."
+  echo ""
+fi
 
 # ---- Step 6: Run platform setup ----
 echo -e "${GREEN}Step 6: Installing platform skills...${NC}"
@@ -735,6 +766,23 @@ project_name = os.path.basename(os.path.abspath(project_root))
 # --- Read project.yaml for project-specific content ---
 project_yaml_path = os.path.join(project_root, 'project.yaml')
 project_vars = {}
+SENTINEL_PATTERNS = [
+    r'<!--\s*Fill in',
+    r'No canonical spec documents configured\.',
+]
+
+def is_scaffold_value(value: str) -> bool:
+    val = (value or '').strip()
+    if not val:
+        return True
+    return any(re.search(pat, val) for pat in SENTINEL_PATTERNS)
+
+def render_project_field(key: str) -> str:
+    value = (project_vars.get(key) or '').strip()
+    if is_scaffold_value(value):
+        return f'<!-- TODO: Fill in {key.upper()} for your project -->'
+    return value
+
 if os.path.isfile(project_yaml_path):
     # Minimal YAML parser for simple key: | multiline blocks
     current_key = None
@@ -823,11 +871,9 @@ replacements = {
     '{{PROJECT_NAME}}': project_name,
     '{{COMPLETION_GATE_CHECKS}}': '\n'.join(gate_checks),
     '{{FILE_PATHS}}': file_paths,
-    '{{PROJECT_DESCRIPTION}}': project_vars.get('project_description', ''),
-    '{{SPEC_DOCUMENTS}}': project_vars.get('spec_documents', ''),
-    '{{ARCHITECTURE_OVERVIEW}}': project_vars.get('architecture_overview', ''),
-    '{{CODE_CONVENTIONS}}': project_vars.get('code_conventions', ''),
-    '{{QUICK_REFERENCE}}': project_vars.get('quick_reference', ''),
+    '{{PROJECT_DESCRIPTION}}': render_project_field('project_description'),
+    '{{SPEC_DOCUMENTS}}': render_project_field('spec_documents'),
+    '{{QUICK_REFERENCE}}': render_project_field('quick_reference'),
 }
 for placeholder, value in replacements.items():
     content = content.replace(placeholder, value)
@@ -951,6 +997,18 @@ else
       report_issue "Missing dev_communication/${required_dir}"
     fi
   done
+
+  # Shared architecture/guidance docs referenced by templates must exist.
+  for required_file in \
+    "shared/architecture/index.md" \
+    "shared/architecture/decision-log.md" \
+    "shared/architecture/templates/adr-template.md" \
+    "shared/guidance/FEATURE_DEVELOPMENT_CHECKLIST.md"
+  do
+    if [ ! -f "${DEVCOMM_DIR}/${required_file}" ]; then
+      report_issue "Missing dev_communication/${required_file}"
+    fi
+  done
 fi
 
 if [ ! -f "$ROLE_FILE" ]; then
@@ -960,6 +1018,18 @@ fi
 for proc_file in polling-workflow.md dev-lifecycle.md qa-lifecycle.md comms-protocol.md; do
   if [ ! -f "${SCRIPT_DIR}/procedures/${proc_file}" ]; then
     report_issue "Missing procedure: ai_team_config/procedures/${proc_file}"
+  fi
+done
+
+# Installer package integrity: required ADR/checklist scaffolds must exist.
+for scaffold_file in \
+  "architecture/index.md" \
+  "architecture/decision-log.md" \
+  "architecture/templates/adr-template.md" \
+  "guidance/FEATURE_DEVELOPMENT_CHECKLIST.md"
+do
+  if [ ! -f "${SCRIPT_DIR}/scaffolds/dev_communication/shared/${scaffold_file}" ]; then
+    report_issue "Installer scaffold missing: ai_team_config/scaffolds/dev_communication/shared/${scaffold_file}"
   fi
 done
 
@@ -981,7 +1051,7 @@ if [ "$PLATFORM" = "codex" ] || [ "$PLATFORM" = "both" ]; then
   done
 fi
 
-# Validate generated platform docs: unresolved placeholders and procedure path refs
+# Validate generated platform docs: unresolved placeholders and path refs
 for doc_file in "${PROJECT_ROOT}/CLAUDE.md" "${PROJECT_ROOT}/AGENTS.md"; do
   if [ -f "$doc_file" ]; then
     doc_name="$(basename "$doc_file")"
@@ -998,6 +1068,12 @@ for doc_file in "${PROJECT_ROOT}/CLAUDE.md" "${PROJECT_ROOT}/AGENTS.md"; do
       report_issue "${doc_name} has ${todo_count} <!-- TODO --> section(s) — fill in project.yaml and re-run with --force-refresh-links"
     fi
 
+    # Check for scaffold sentinel content that indicates project.yaml is uncustomized.
+    sentinel_count=$(grep -cE '<!--\s*Fill in|No canonical spec documents configured\.' "$doc_file" 2>/dev/null || true)
+    if [ "$sentinel_count" -gt 0 ]; then
+      report_issue "${doc_name} still contains scaffold placeholder content — fill in project.yaml and re-run with --force-refresh-links"
+    fi
+
     # Check that all ai_team_config/procedures/*.md references resolve to real files
     while IFS= read -r proc_ref; do
       proc_path="${PROJECT_ROOT}/${proc_ref}"
@@ -1005,6 +1081,14 @@ for doc_file in "${PROJECT_ROOT}/CLAUDE.md" "${PROJECT_ROOT}/AGENTS.md"; do
         report_issue "${doc_name} references non-existent procedure: ${proc_ref}"
       fi
     done < <(grep -oE 'ai_team_config/procedures/[a-z_-]+\.md' "$doc_file" 2>/dev/null | sort -u)
+
+    # Check that all dev_communication/shared/*.md references resolve to real files.
+    while IFS= read -r shared_ref; do
+      shared_path="${PROJECT_ROOT}/${shared_ref}"
+      if [ ! -f "$shared_path" ]; then
+        report_issue "${doc_name} references non-existent shared doc: ${shared_ref}"
+      fi
+    done < <(grep -oE 'dev_communication/shared/[A-Za-z0-9_./-]+\.md' "$doc_file" 2>/dev/null | sort -u)
   fi
 done
 

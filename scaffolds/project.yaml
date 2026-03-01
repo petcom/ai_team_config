@@ -9,6 +9,10 @@
 # The installer reads this file during Step 6b (template rendering). Any field
 # left empty will produce a <!-- TODO --> marker in the generated output.
 #
+# Architecture overview and code conventions are handled automatically via the
+# ADR system (dev_communication/shared/architecture/) and development checklist
+# (dev_communication/shared/guidance/FEATURE_DEVELOPMENT_CHECKLIST.md).
+#
 # =============================================================================
 
 # Project name (used in heading). Defaults to directory name if omitted.
@@ -21,14 +25,6 @@ project_description: |
 # Spec/blueprint documents table (markdown).
 spec_documents: |
   No canonical spec documents configured.
-
-# Architecture overview (markdown). Layers, patterns, key abstractions.
-architecture_overview: |
-  <!-- Fill in your project's architecture overview here -->
-
-# Code conventions (markdown). Path aliases, naming, file organization.
-code_conventions: |
-  <!-- Fill in your project's code conventions here -->
 
 # Quick reference commands (markdown code block).
 quick_reference: |

@@ -92,11 +92,20 @@ QA must then independently verify and approve before the issue moves to complete
 
 ## Architecture
 
-{{ARCHITECTURE_OVERVIEW}}
+This project uses Architecture Decision Records (ADRs) to document all
+architectural patterns and conventions.
+
+**ADR index:** `dev_communication/shared/architecture/index.md`
+**Decision log:** `dev_communication/shared/architecture/decision-log.md`
+**ADR directory:** `dev_communication/shared/architecture/decisions/`
+
+Run `/adr` to check status or `/adr gaps` to find unresolved architectural questions.
 
 ## Code Conventions
 
-{{CODE_CONVENTIONS}}
+**Checklist:** `dev_communication/shared/guidance/FEATURE_DEVELOPMENT_CHECKLIST.md`
+
+Run `/context` before implementation to load relevant ADRs, patterns, and conventions.
 
 ---
 
