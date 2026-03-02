@@ -2,15 +2,13 @@
 # QA Issue Lifecycle Checklist (Shared)
 # =============================================================================
 #
-# The full iterative loop from dev handoff detection to issue completion.
-# Used by both Frontend-QA and Backend-QA. Team-specific values are resolved
-# via {team} placeholder (frontend or backend) from team.json + session sub-role.
-#
-# Usage: "Poll comms and follow qa-gate until all active issues are verified"
+# Full iterative loop from dev handoff detection to issue completion.
+# Used by both Frontend-QA and Backend-QA. Team-specific values resolved
+# via {team} placeholder from team.json + session sub-role.
 #
 # =============================================================================
 
-version: "2.0.0"
+version: "3.0.0"
 name: QA Issue Lifecycle
 applies_to:
   - frontend-qa
@@ -33,21 +31,18 @@ qa_state:
 # ---------------------------------------------------------------------------
 # Phase 0: Comms Poll & Triage
 # ---------------------------------------------------------------------------
-# Run at the start of each iteration. Detects dev handoffs, dev re-fixes
-# after QA rejection, cross-team responses, and new review requests.
 
 phase_0_comms:
   name: Poll comms and triage
   trigger: start_of_iteration
-  poll_interval_seconds: 240
   steps:
     - Read {team}/inbox/ for new messages
     - Read {team}/issues/active/ for issues with dev resolution notes
     - Parse issue QA field and include QA=PENDING items in candidate set
+    - Check for stale blocks (QA=BLOCKED with last verification >12h ago) — auto-include for recheck
     - Classify each inbox message (qa_review_request, dev_refix, cross_team_response, status_update)
     - Match dev resolution notes and re-fix messages to active issues
-    - Identify QA-ready items by markers in issue files or inbox messages
-    - Pick next issue to verify (QA re-checks first, then new handoffs by ID order)
+    - Pick next issue (re-checks first, then new handoffs by ID order)
   sources:
     - dev_communication/{team}/inbox
     - dev_communication/{team}/issues/active
@@ -55,13 +50,11 @@ phase_0_comms:
     - Development Complete
     - Awaiting QA
     - QA Ready
-    - Ready for QA
-    - Resolution Notes      # Dev appends these after fixing QA findings
+    - Resolution Notes
 
 # ---------------------------------------------------------------------------
 # Phase 1: Entry Validation
 # ---------------------------------------------------------------------------
-# Before running any checks, confirm the issue is ready for QA.
 
 phase_1_entry:
   name: Validate entry criteria
@@ -69,6 +62,9 @@ phase_1_entry:
     - Confirm issue file exists under issues/active/ with Status ACTIVE
     - Confirm issue has resolution notes from dev (not just the initial description)
     - Confirm acceptance criteria are present in the issue file
+    - "Freshness check: QA Review Request or Dev Response timestamp must be newer than last QA verification"
+    - "Implementation evidence: issue must have commit references, changed files, or test additions"
+    - If planning-only (no code evidence), emit Need More Info — do not run full gate suite
     - If re-checking after rejection, confirm dev addressed specific QA findings
     - If entry criteria not met, emit Need More Info verdict and notify dev
   entry_criteria:
@@ -76,11 +72,12 @@ phase_1_entry:
     - Issue includes QA field with value PENDING, or BLOCKED with new dev evidence
     - Dev resolution notes are present
     - Acceptance criteria are defined
+    - Dev handoff is fresh (newer than last QA verification)
+    - Implementation evidence exists (commits, changed files, or tests)
 
 # ---------------------------------------------------------------------------
 # Phase 2: Automated Verification
 # ---------------------------------------------------------------------------
-# Run the automated test suite. All checks must pass or have documented skip reason.
 
 phase_2_automated:
   name: Run automated checks
@@ -100,13 +97,11 @@ phase_2_automated:
       criteria: all pass (if UAT specs exist for the issue)
     targeted_tests:
       criteria: run tests specifically covering the changed files/flows
-  allow_skip_only_with_reason: true
   on_failure: record failures as evidence — do not skip to manual review
 
 # ---------------------------------------------------------------------------
 # Phase 3: Manual Review
 # ---------------------------------------------------------------------------
-# Human-judgment review that automated checks cannot cover.
 
 phase_3_manual:
   name: Manual QA review
@@ -129,8 +124,6 @@ phase_3_manual:
 # ---------------------------------------------------------------------------
 # Phase 4: Verdict & Evidence
 # ---------------------------------------------------------------------------
-# Emit a verdict with full evidence. Every blocking decision must include
-# unblock criteria so dev knows exactly what to fix.
 
 phase_4_verdict:
   name: Emit QA verdict
@@ -158,15 +151,13 @@ phase_4_verdict:
   steps:
     - Set issue QA field to IN_PROGRESS at verification start
     - Append QA verdict and findings to the issue file
-    - Update issue QA field based on verdict (PASS, BLOCKED, or IN_PROGRESS when paused)
-    - Send findings message to {team}/inbox/ (for dev to detect on next poll)
+    - Update issue QA field based on verdict (PASS, BLOCKED, or IN_PROGRESS)
+    - Send findings message to {team}/inbox/
     - If cross-team blocker, send evidence to {other_team}/inbox/
-    - Record test execution results as evidence in the verdict
 
 # ---------------------------------------------------------------------------
 # Phase 5: Completion (Pass only)
 # ---------------------------------------------------------------------------
-# Only reached when verdict is Pass. QA owns this step — dev never does.
 
 phase_5_complete:
   name: Complete issue
@@ -179,76 +170,50 @@ phase_5_complete:
     - If cross-team, send completion notification to {other_team}/inbox/
   ownership_rule: >
     Only QA may execute this phase. Dev roles must NOT move issues to
-    completed/ or set Status: COMPLETE. This is enforced by role YAML
-    does_not_own declarations.
+    completed/ or set Status: COMPLETE.
 
 # ---------------------------------------------------------------------------
-# Phase 6: Wait for Dev (Blocked/Need More Info only)
+# Phase 6: Iterate
 # ---------------------------------------------------------------------------
-# After emitting a non-pass verdict, wait for dev to address findings.
-# Dev will append fixes, re-run their verification gate, and update the
-# issue file with new resolution notes.
 
-phase_6_wait_for_dev:
-  name: Wait for dev re-fix
-  guard: verdict in [blocked, need_more_info, pass_with_conditions]
-  action: poll
-  poll_sources:
-    - dev_communication/{team}/inbox
-    - dev_communication/{team}/issues/active
-  look_for:
-    - QA field reset to PENDING after dev re-fix
-    - Updated resolution notes in issue file (newer than QA findings timestamp)
-    - Dev message in {team}/inbox/ referencing the issue
-    - Dev confirmation that QA findings have been addressed
-  outcome: return to phase_0 for next iteration
-
-# ---------------------------------------------------------------------------
-# Phase 7: Iterate Until All Issues Verified
-# ---------------------------------------------------------------------------
-# On dev re-fix, loop back to Phase 0. Re-check the specific issue,
-# then pick up the next QA-ready item.
-
-phase_7_iterate:
-  name: Iterate on dev fixes
+phase_6_iterate:
+  name: Iterate
+  while_waiting: >
+    Pick the next QA-ready item and begin Phase 1.
+  outcomes:
+    pass: issue moved to completed/ — done
+    blocked: send findings to dev, return to Phase 0 when dev responds
+    need_more_info: send questions to dev, return to Phase 0 when dev responds
   loop: phase_0_comms
   exit_condition: >
     All issues in {team}/issues/active/ have been moved to completed/,
-    OR no more QA-ready items remain.
+    no unprocessed messages remain in inbox.
 
 # ---------------------------------------------------------------------------
 # Automation (team-specific commands)
 # ---------------------------------------------------------------------------
 
 automation:
-  runner: ai_team_config/scripts/qa_poll_cycle.sh
   default_gate_timeout_seconds: 120
   commands:
     frontend:
       typecheck:
-        - npm run typecheck
         - npx tsc --noEmit
       unit:
         - npx vitest run
-        - npm run test:unit
       integration:
         - npx vitest run --config vitest.integration.config.ts
-        - npm run test:integration
       uat:
         - npx playwright test --project=chromium
-        - npm run test:uat
-        - npm run e2e
     backend:
       typecheck:
-        - npm run typecheck
         - npx tsc --noEmit
       unit:
         - npm run test:unit
-        - npm run test
       integration:
         - npm run test:integration
       uat:
-        - npm run test:uat
+        - npm run contracts:validate
   completion_requires:
     - all_required_checks_pass_or_documented_skip
     - qa_verdict_is_pass

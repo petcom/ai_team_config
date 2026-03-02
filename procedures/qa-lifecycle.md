@@ -28,7 +28,10 @@ LOOP: Poll → Validate → Verify → Review → Verdict → Complete or Iterat
    - "Awaiting QA"
    - "QA Ready"
    - "Resolution Notes" (appended by Dev)
-4. Classify inbox messages:
+4. Check for stale blocks: if an issue has `QA: BLOCKED` and the last QA
+   verification is older than 12 hours, include it in the candidate set
+   for automatic re-check
+5. Classify inbox messages:
 
 | Message Type | Action |
 |-------------|--------|
@@ -36,7 +39,7 @@ LOOP: Poll → Validate → Verify → Review → Verdict → Complete or Iterat
 | Dev re-fix after rejection | → Phase 1 (re-validate) |
 | Cross-team status update | → Acknowledge |
 
-5. Prioritize: re-fixes of previously blocked issues first, then new handoffs
+6. Prioritize: re-fixes of previously blocked issues first, then new handoffs
 
 ---
 
@@ -48,6 +51,11 @@ Before running any checks, confirm the issue is ready:
 2. Resolution notes are present (Dev filled these in during Phase 5)
 3. Acceptance criteria are defined
 4. Dev verification gate results are documented (typecheck, tests)
+5. **Freshness check:** Issue has a QA Review Request or Dev Response timestamp
+   newer than the last QA verification. Prevents re-running QA on stale stubs.
+6. **Implementation evidence:** Issue has commit references, changed files, or
+   test additions. If the issue is planning-only (no code evidence), emit
+   "Need More Info" — do not run the full gate suite.
 
 **If entry criteria are not met:** Send "Need More Info" back to Dev's inbox
 with specific missing items. Do not proceed.
@@ -74,7 +82,7 @@ Run the automated test gates. All must pass for the issue to proceed.
 | Integration tests | `npx vitest run --config integration` | All pass |
 | UAT (E2E) | `npx playwright test` | All pass |
 
-**Per-check timeout:** As configured in role yaml (default 180s).
+**Per-check timeout:** As configured in role yaml (default 120s).
 
 **On failure:** Record which gate failed. Move to Phase 4 with "Blocked" verdict.
 
@@ -109,8 +117,8 @@ Emit one of four verdicts:
 |---------|------|-----------|
 | **Pass** | All gates green, manual review clean | → Phase 5 (complete) |
 | **Pass with Conditions** | Minor issues, non-blocking | → Phase 5 with notes |
-| **Blocked** | Any gate failed or critical manual finding | → Phase 6 (wait for fix) |
-| **Need More Info** | Cannot determine pass/fail | → Phase 6 (wait for info) |
+| **Blocked** | Any gate failed or critical manual finding | → Phase 6 (iterate) |
+| **Need More Info** | Cannot determine pass/fail | → Phase 6 (iterate) |
 
 **Required evidence for every verdict:**
 - Issue reference (ISS-xxx)
@@ -141,7 +149,7 @@ Emit one of four verdicts:
 
 ---
 
-## Phase 6: Wait for Dev Fix
+## Phase 6: Iterate
 
 For Blocked or Need More Info verdicts:
 
@@ -152,13 +160,10 @@ For Blocked or Need More Info verdicts:
 2. Wait for Dev to re-fix and re-submit
 3. When Dev responds, return to Phase 0
 
----
+**While waiting:** Pick the next QA-ready item and begin Phase 1.
 
-## Phase 7: Iterate
-
-Loop back to Phase 0. Continue until:
-- All issues in `active/` have been moved to `completed/`
-- No unprocessed messages remain in inbox
+**Exit condition:** All issues in `active/` have been moved to `completed/`,
+no unprocessed messages remain in inbox.
 
 ---
 
