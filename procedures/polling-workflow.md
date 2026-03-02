@@ -42,6 +42,14 @@ Continue the outer loop until ALL of:
 - No issues remain in queue/ or active/ (all moved to completed/ by QA)
 - No new work has arrived since last poll
 
+### Autonomous Polling Rules
+
+- **Do NOT pause to ask the user** before continuing to the next issue, commit, or poll cycle. Execute continuously.
+- **QA findings**: When QA returns findings (BLOCKED, FAIL, Need More Info), fix the issues immediately and re-handoff without asking the user.
+- **Idle timeout**: If no new work arrives and no QA responses appear for 30 contiguous minutes of polling, stop the loop and report final status to the user.
+- **Commits**: Commit completed work in batches as phases finish. Do not ask permission to commit — just commit and continue.
+- **Handoff messages**: Always create QA handoff messages in the team inbox immediately after marking an issue DEV_COMPLETE.
+
 ---
 
 ## What Polling Is NOT
