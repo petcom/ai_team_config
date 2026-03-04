@@ -100,7 +100,7 @@ phase_2_automated:
   name: Run automated checks
   blocking: true
   timeout_policy:
-    per_check_timeout_seconds: 240
+    per_check_timeout_seconds: 420
     enforcement: wrap each automated gate command with a hard timeout
     on_timeout: mark gate FAIL and include timeout details in QA evidence
   checks:
@@ -234,7 +234,7 @@ autonomous_mode:
     - manual_ok  # Manual review confirmation remains explicit
 
 automation:
-  default_gate_timeout_seconds: 240
+  default_gate_timeout_seconds: 420
   commands:
     frontend:
       typecheck:

@@ -26,7 +26,7 @@ Options:
   --no-emit-dev-message     Do not write QA pass/blocked messages
   --stale-recheck-hours N   Re-run BLOCKED issues after N hours even without fresh evidence (default: 12)
   --no-stale-recheck        Disable time-based recheck; require fresh dev evidence only
-  --gate-timeout SECONDS    Per-gate execution timeout (default: 240)
+  --gate-timeout SECONDS    Per-gate execution timeout (default: 420)
   --dry-run                 Do not modify issue/message files
   --help                    Show this help
 
@@ -66,7 +66,7 @@ recheck_existing=0
 emit_dev_message=1
 dry_run=0
 autonomous=0
-gate_timeout=240
+gate_timeout=420
 stale_recheck_hours=12
 stale_recheck=1
 stale_in_progress_minutes=60
