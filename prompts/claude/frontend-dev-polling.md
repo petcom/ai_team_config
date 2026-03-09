@@ -25,6 +25,7 @@ Follow the full inner loop from the checklist. Gates:
 ## Phase 5: Two-Step Handoff (BLOCKING)
 
 **Both steps required or QA skips the issue indefinitely.**
+**QA now also requires a commit hash/reference plus an explicit push statement.**
 
 **Step A** — Append to issue file in `issues/active/`:
 ```
@@ -33,12 +34,15 @@ Follow the full inner loop from the checklist. Gates:
 {summary, file refs, gate results}
 - Files: {changed}
 - Gates: tsc 0 errors, vitest N/N pass
+- Commit: {hash or reference}
+- Push: pushed to shared remote branch
 ```
 
 **Step B** — Create in `dev_communication/frontend/inbox/`:
 - First: `{date}_qa-handoff-ui-iss-{NNN}.md`
 - Re-fix: `{date}_dev-rehandoff-ui-iss-{NNN}.md`
 - Headers: `From: Frontend-Dev`, `To: Frontend-QA`
+- Include commit hash/reference and explicit push evidence in the handoff body if not already obvious from Step A
 
 Then move processed QA messages to `inbox/completed/`.
 

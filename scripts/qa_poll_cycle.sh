@@ -370,6 +370,7 @@ append_qa_verification_section() {
   local manual_note="$9"
   local unblock_note="${10}"
   local recommendations="${11}"
+  local commit_push_note="${12}"
 
   if [[ "$dry_run" -eq 1 ]]; then
     log "Dry run: would append QA Verification section to $issue_file"
@@ -390,6 +391,7 @@ append_qa_verification_section() {
   - UAT: ${uat_result}
 - Coverage Review: ${coverage_note}
 - Manual Review: ${manual_note}
+- Commit/Push Evidence: ${commit_push_note}
 - Recommendations to Dev: ${recommendations}
 - Unblock Criteria: ${unblock_note}
 EOF
@@ -492,6 +494,83 @@ issue_has_ready_inbox_marker() {
     fi
   done < <(find "$inbox_dir" -maxdepth 1 -type f -name '*.md' -exec grep -Eil "$ready_regex" {} + 2>/dev/null || true)
   return 1
+}
+
+latest_dev_handoff_file_for_issue() {
+  local issue_id="$1"
+  local latest_file=""
+  local latest_epoch=0
+  local msg_file
+
+  while IFS= read -r msg_file; do
+    [[ -z "$msg_file" ]] && continue
+    if ! grep -q "$issue_id" "$msg_file" 2>/dev/null; then
+      continue
+    fi
+    local msg_from
+    msg_from="$(grep -m1 -E '^\*\*From:\*\* ' "$msg_file" | sed -E 's/^\*\*From:\*\* //')"
+    if [[ "${msg_from,,}" != "${to_header,,}" ]]; then
+      continue
+    fi
+    local msg_epoch
+    msg_epoch="$(stat -c '%Y' "$msg_file" 2>/dev/null || stat -f '%m' "$msg_file" 2>/dev/null || echo 0)"
+    if [[ "$msg_epoch" -gt "$latest_epoch" ]]; then
+      latest_epoch="$msg_epoch"
+      latest_file="$msg_file"
+    fi
+  done < <(find "$inbox_dir" -maxdepth 1 -type f -name '*.md' 2>/dev/null || true)
+
+  printf '%s' "$latest_file"
+}
+
+resolve_commit_push_evidence() {
+  local issue_file="$1"
+  local issue_id="$2"
+  local status_var="$3"
+  local note_var="$4"
+  local commit_var="$5"
+
+  local latest_handoff
+  latest_handoff="$(latest_dev_handoff_file_for_issue "$issue_id" || true)"
+
+  local sources=("$issue_file")
+  if [[ -n "$latest_handoff" && -f "$latest_handoff" ]]; then
+    sources+=("$latest_handoff")
+  fi
+
+  local commit_ref=""
+  commit_ref="$(cat "${sources[@]}" 2>/dev/null | grep -Eo '\b[0-9a-f]{7,40}\b' | tail -n1 || true)"
+
+  local push_present=0
+  if cat "${sources[@]}" 2>/dev/null | grep -Eiq '\bpush(ed|ing)?\b'; then
+    push_present=1
+  fi
+
+  local note=""
+  if [[ -n "$commit_ref" ]]; then
+    note="commit ${commit_ref:0:12}"
+  else
+    note="commit reference missing"
+  fi
+  if [[ "$push_present" -eq 1 ]]; then
+    note="${note}; push evidence present"
+  else
+    note="${note}; push evidence missing"
+  fi
+  if [[ -n "$latest_handoff" ]]; then
+    note="${note}; handoff message present"
+  else
+    note="${note}; handoff message missing"
+  fi
+
+  local status="missing"
+  if [[ -n "$commit_ref" && "$push_present" -eq 1 ]]; then
+    status="verified"
+  fi
+
+  printf -v "$status_var" '%s' "$status"
+  printf -v "$note_var" '%s' "$note"
+  printf -v "$commit_var" '%s' "$commit_ref"
 }
 
 snapshot_poll_state() {
@@ -672,6 +751,33 @@ evaluate_issue() {
   local integration_result="" integration_reason=""
   local uat_result="" uat_reason=""
 
+  local commit_push_status="" commit_push_note="" commit_ref=""
+  resolve_commit_push_evidence "$issue_file" "$issue_id" commit_push_status commit_push_note commit_ref
+  if [[ "$commit_push_status" != "verified" ]]; then
+    set_issue_qa_state "$issue_file" "BLOCKED"
+    append_qa_verification_section \
+      "$issue_file" "$issue_id" "Need More Info" \
+      "N/A (entry validation blocked before gates)" \
+      "N/A (entry validation blocked before gates)" \
+      "N/A (entry validation blocked before gates)" \
+      "N/A (entry validation blocked before gates)" \
+      "Entry validation stopped before automated verification because required commit/push evidence is missing from the dev handoff." \
+      "Entry validation failed before automated review." \
+      "Add a commit hash/reference to the issue notes or handoff and explicitly state the work was pushed to the shared remote branch, then re-handoff." \
+      "Commit/push evidence is now a required QA entry criterion. Re-submit with both a commit reference and explicit push evidence." \
+      "$commit_push_note"
+    if [[ "$emit_dev_message" -eq 1 ]]; then
+      local feedback_file="$inbox_dir/$(day_stamp)_$(slugify "${issue_id}_qa_Need_More_Info")_$(date -u +%H%M%S).md"
+      emit_dev_feedback_message "$issue_id" "Need More Info" "BLOCKED" \
+        "Commit/push evidence missing from the dev handoff. Add a commit hash/reference and explicit push statement, then re-handoff." \
+        "Add a commit hash/reference and explicit push statement to the issue notes or handoff." \
+        "$feedback_file"
+      log "Wrote QA feedback message: $feedback_file"
+    fi
+    log "Issue $issue_id needs more info before QA gates: $commit_push_note"
+    return 0
+  fi
+
   set_issue_qa_state "$issue_file" "IN_PROGRESS"
   run_gate "typecheck" "$typecheck_cmd" "$run_log_dir" typecheck_result typecheck_reason
   run_gate "unit" "$unit_cmd" "$run_log_dir" unit_result unit_reason
@@ -734,7 +840,7 @@ evaluate_issue() {
   append_qa_verification_section \
     "$issue_file" "$issue_id" "$verdict" \
     "$typecheck_result" "$unit_result" "$integration_result" "$uat_result" \
-    "$coverage_note" "$manual_note" "$unblock_note" "$recommendations"
+    "$coverage_note" "$manual_note" "$unblock_note" "$recommendations" "$commit_push_note"
 
   # PENDING_MANUAL_REVIEW suppresses dev notification regardless of emit_dev_message
   if [[ "$emit_dev_message" -eq 1 && "$qa_state" != "PENDING_MANUAL_REVIEW" ]]; then
@@ -770,6 +876,12 @@ completion_sweep() {
     qa_state="$(extract_issue_field_value "$f" "QA" | tr '[:lower:]' '[:upper:]')"
     if [[ "$qa_state" == "PASS" && "$approve_mode" -eq 1 ]]; then
       issue_id="$(extract_issue_id_from_file "$f")"
+      local commit_push_status="" commit_push_note="" commit_ref=""
+      resolve_commit_push_evidence "$f" "$issue_id" commit_push_status commit_push_note commit_ref
+      if [[ "$commit_push_status" != "verified" ]]; then
+        log "Completion sweep: skipping $issue_id because commit/push evidence is missing ($commit_push_note)."
+        continue
+      fi
       log "Completion sweep: moving PASS issue $issue_id to completed/"
       set_issue_complete_status "$f"
       if [[ "$dry_run" -eq 0 ]]; then
@@ -845,6 +957,12 @@ process_cycle() {
 
     # PASS in active/ — auto-heal: complete immediately without running gates
     if [[ "$qa_state" == "PASS" && "$approve_mode" -eq 1 ]]; then
+      local commit_push_status="" commit_push_note="" commit_ref=""
+      resolve_commit_push_evidence "$candidate" "$issue_id" commit_push_status commit_push_note commit_ref
+      if [[ "$commit_push_status" != "verified" ]]; then
+        log "Auto-heal skipped for $issue_id: commit/push evidence missing ($commit_push_note)."
+        continue
+      fi
       log "Auto-healing $issue_id: QA PASS still in active/, completing now."
       set_issue_complete_status "$candidate"
       if [[ "$dry_run" -eq 0 ]]; then
@@ -857,6 +975,28 @@ process_cycle() {
     # PENDING_MANUAL_REVIEW — skip gates, only promote if --manual-ok
     if [[ "$qa_state" == "PENDING_MANUAL_REVIEW" ]]; then
       if [[ "$manual_ok" -eq 1 ]]; then
+        local commit_push_status="" commit_push_note="" commit_ref=""
+        resolve_commit_push_evidence "$candidate" "$issue_id" commit_push_status commit_push_note commit_ref
+        if [[ "$commit_push_status" != "verified" ]]; then
+          log "Cannot promote $issue_id: commit/push evidence missing ($commit_push_note)."
+          set_issue_qa_state "$candidate" "BLOCKED"
+          append_qa_verification_section \
+            "$candidate" "$issue_id" "Need More Info" \
+            "N/A (gates skipped — prior cycle passed)" "N/A" "N/A" "N/A" \
+            "Manual promotion blocked because commit/push evidence is missing from the dev handoff." \
+            "Manual review could not complete because required commit/push evidence is missing." \
+            "Add a commit hash/reference and explicit push statement to the dev response or handoff, then re-handoff." \
+            "Manual promotion blocked: dev handoff is missing commit/push evidence required by QA." \
+            "$commit_push_note"
+          if [[ "$emit_dev_message" -eq 1 ]]; then
+            local feedback_file="$inbox_dir/$(day_stamp)_$(slugify "${issue_id}_qa_Need_More_Info")_$(date -u +%H%M%S).md"
+            emit_dev_feedback_message "$issue_id" "Need More Info" "BLOCKED" \
+              "Manual QA could not complete because commit/push evidence is missing from the dev handoff." \
+              "Add a commit hash/reference and explicit push statement, then re-handoff." \
+              "$feedback_file"
+          fi
+          continue
+        fi
         log "Promoting $issue_id: PENDING_MANUAL_REVIEW → PASS (--manual-ok confirmed)."
         local promote_manual_note="Manual review confirmed (efficiency, accuracy, duplication, security, ADR conformance)."
         if [[ -n "$manual_notes" ]]; then
@@ -867,7 +1007,7 @@ process_cycle() {
           "$candidate" "$issue_id" "Pass" \
           "N/A (gates skipped — prior cycle passed)" "N/A" "N/A" "N/A" \
           "See prior verification cycle." "$promote_manual_note" "N/A" \
-          "Manual review promotion via --manual-ok."
+          "Manual review promotion via --manual-ok." "$commit_push_note"
         if [[ "$approve_mode" -eq 1 ]]; then
           set_issue_complete_status "$candidate"
           if [[ "$dry_run" -eq 0 ]]; then

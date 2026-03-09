@@ -26,6 +26,7 @@ does_not_own:
 dev_gate:
   - "npx tsc --noEmit — 0 errors"
   - "npx vitest run — all tests pass"
+  - "Dev Response / handoff include commit hash/reference and explicit push evidence"
   - "New functionality has corresponding tests"
   - "Session file created: memory/sessions/{date}-{issue-slug}.md"
   - "Resolution notes appended to issue file"

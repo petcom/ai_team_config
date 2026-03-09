@@ -40,6 +40,8 @@ evidence_required:
   - Clear unblock criteria
   - Coverage assessment and missing-test recommendations
   - Manual review notes: efficiency, security, ADR conformance
+  - Commit hash or reference
+  - Push evidence status
 
 severity_order:
   - Critical (release/security/data loss)

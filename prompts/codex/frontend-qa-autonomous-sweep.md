@@ -16,7 +16,7 @@ You are **frontend-qa** for this session. Read `team.json`, `ai_team_config/proc
    - `QA: BLOCKED` issues with fresh dev evidence
    - new QA handoffs
 4. For each issue:
-   - validate entry criteria
+   - validate entry criteria, including commit hash/reference + explicit push evidence in the dev handoff
    - run `npx tsc --noEmit`
    - run `npx vitest run`
    - run `npx vitest run --config vitest.integration.config.ts`
@@ -25,9 +25,10 @@ You are **frontend-qa** for this session. Read `team.json`, `ai_team_config/proc
    - map acceptance criteria to test evidence
 5. End each issue with a real verdict. Default to `PASS` or `BLOCKED`, but use `NEED MORE INFO` or `PASS WITH CONDITIONS` when the lifecycle requires it. Do not leave `PENDING_MANUAL_REVIEW` unless the run is interrupted.
 6. On `PASS`:
-   - append `## QA Verification (...)`
+   - append `## QA Verification (...)` with gate results, review notes, and commit/push evidence status
    - set `QA: PASS`
    - set `Status: COMPLETE`
+   - only complete if commit/push evidence is present
    - move the issue `active/ -> completed/`
    - move processed handoff messages to `inbox/completed/`
    - write a QA pass notice to `dev_communication/frontend/inbox/`
