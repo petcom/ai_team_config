@@ -32,7 +32,9 @@ phase_1_entry:
     - Resolution notes present
     - Acceptance criteria defined
     - "Freshness (previously BLOCKED): both a fresh dev inbox handoff AND a fresh Dev Response section, each newer than last QA Verification"
+    - "Commit/push evidence present: dev handoff includes commit hash/reference plus explicit evidence the work was pushed to shared remote"
     - Implementation evidence (commits, changed files, or tests)
+    - If commit/push evidence is missing, emit Need More Info
     - If planning-only, emit Need More Info
 
 phase_2_automated:
@@ -56,11 +58,21 @@ phase_4_verdict:
     blocked: { action: "notify dev with evidence and unblock criteria" }
     need_more_info: { action: "send questions to dev" }
   severity: [Critical, High, Medium, Low]
+  evidence_required:
+    - issue_reference
+    - file_or_route_reference
+    - automated_gate_results
+    - acceptance_criteria_to_test_mapping
+    - manual_review_notes
+    - commit_hash_or_reference
+    - push_evidence_status
+    - unblock_criteria_for_blocked_or_need_more_info
 
 phase_5_complete:
   name: Completion (QA only)
   guard: verdict == pass
   steps:
+    - Confirm commit hash/reference and push evidence are present in dev handoff
     - Set QA=PASS, Status=COMPLETE
     - Move issue active/ → completed/
     - Move messages to inbox/completed/

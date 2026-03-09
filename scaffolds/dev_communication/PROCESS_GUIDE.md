@@ -209,8 +209,9 @@ Use shared checklist:
    - [ ] `npx vitest run` — all tests pass
    - [ ] `npx vitest run --config vitest.integration.config.ts` — integration tests pass
 2. **Review acceptance criteria** — Verify all acceptance criteria in the issue file are met
-3. **Verify test coverage** — Confirm new functionality has meaningful test coverage
-4. **Decision:**
+3. **Verify commit/push evidence** — Confirm the dev handoff includes a commit hash/reference and explicit evidence the work was pushed to the shared remote branch
+4. **Verify test coverage** — Confirm new functionality has meaningful test coverage
+5. **Decision:**
    - **Pass** → Proceed to Phase 5 (Completion)
    - **Fail** → Append QA recheck findings to issue file, set `QA decision: Blocked`, issue returns to dev for Phase 2
 
@@ -221,7 +222,7 @@ Recommended QA polling command:
 
 Only QA moves issues to completed. This happens after QA verification passes.
 
-1. **Update issue file** — Set `Status: COMPLETE`, add commit hash if applicable
+1. **Update issue file** — Set `Status: COMPLETE`, add commit hash, and only complete if push evidence was verified during QA
 2. **Move issue** — `active/` to `completed/`
 
 ### Phase 6: Comms Response — *Owner: Dev*

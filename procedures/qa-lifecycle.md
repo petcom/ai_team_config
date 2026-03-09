@@ -38,8 +38,11 @@ Every iteration starts here. Do not proceed until complete.
    - A fresh inbox handoff/re-handoff message from Dev
    - A `## Dev Response ({ISO timestamp})` section in the issue file
    Either alone is stale. First-time handoffs without prior QA verification use normal markers.
-5. Implementation evidence: commits, changed files, or tests
-6. If planning-only (no code), emit Need More Info — skip gates
+5. **Commit/push evidence required:** Dev handoff must include a commit reference and evidence the work was pushed to the shared remote branch.
+   - Minimum acceptable evidence: commit hash in issue resolution/dev response notes, plus an explicit push statement in the Dev Response or handoff message
+   - If commit/push evidence is missing, emit Need More Info — do not proceed
+6. Implementation evidence: commits, changed files, or tests
+7. If planning-only (no code), emit Need More Info — skip gates
 
 ## Phase 2: Automated Gates (BLOCKING)
 
@@ -87,7 +90,7 @@ Map acceptance criteria → test evidence. Document gaps.
 
 `PENDING_MANUAL_REVIEW` is a **temporary checkpoint only** — not a dev blocker, not a resting state. QA must resolve it to PASS or BLOCKED promptly. Do NOT notify Dev for this state. If stale >30 min, resolve before taking new work.
 
-**Evidence for every verdict:** issue ref, file/route ref, gate results, criteria-to-test mapping, manual review notes, unblock criteria (for blocked).
+**Evidence for every verdict:** issue ref, file/route ref, gate results, criteria-to-test mapping, manual review notes, commit/push evidence status, unblock criteria (for blocked).
 
 **Severity:** Critical (security/data loss) → High (capability broken) → Medium (workflow gap) → Low (docs/naming)
 
@@ -97,6 +100,8 @@ Map acceptance criteria → test evidence. Document gaps.
 2. Move issue `active/` → `completed/`
 3. Move processed messages to `inbox/completed/`
 4. Send completion notice to Dev's inbox
+
+QA must NOT complete an issue if commit hash or push evidence is missing from the dev handoff.
 
 Dev CANNOT execute this phase.
 
