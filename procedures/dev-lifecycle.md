@@ -48,6 +48,24 @@ Track outbound requests in issue file under `## Awaiting Response`.
 
 Load relevant ADRs, memory patterns, issue acceptance criteria, and existing code.
 
+## Phase 2b: Design Principle Gate (BLOCKING)
+
+Before writing any new type, API hook, endpoint shape, or backend message:
+
+| Rule | Detail |
+|------|--------|
+| **No compatibility** | New features get ideal design. No shims, no graceful degradation, no `@deprecated`. |
+| **Nullable, not optional** | New fields: `T \| null` (always present). Never `T?` (omittable). The endpoint returns every field — `null` if unset. |
+| **Prescriptive contracts** | Backend messages state "the endpoint MUST return X" — not "it would be nice if." Types define the contract. |
+| **Update callers, don't shim** | When a shape changes, update all consumers. Don't add compat layers. |
+| **Spec silent on compat?** | Default to ideal design. |
+
+Source: `dev_communication/shared/guidance/DEVELOPMENT_PRINCIPLES.md`
+
+### Content entity rule (ADR-DEV-005)
+
+All authored content entities (LearningUnit, Exercise, QuestionBank, ContentItem, Media, Module, Course) MUST have `departmentId`, `createdBy`, `sharedWithDepartment` at top level. Missing any field is a bug. See `dev_communication/shared/architecture/decisions/ADR-DEV-005-CONTENT-OWNERSHIP-DEPARTMENT-SCOPING.md`.
+
 ## Phase 3: Implementation
 
 1. Move issue from `queue/` to `active/`

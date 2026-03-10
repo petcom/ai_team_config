@@ -43,6 +43,14 @@ Quick-start prompts for each role live in `ai_team_config/prompts/claude/`.
 - `.claude/team-configs/agent-team-roles.json` — role definitions, spawn prompts, presets
 - `.claude/team-configs/code-reviewer-config.json` — code review gate criteria
 
+## Design Principle (BLOCKING)
+
+All new types, API hooks, and backend messages follow **ideal design — no compatibility**.
+New fields are `T | null` (always present, nullable), never `T?` (optional/omittable).
+Backend messages are prescriptive ("endpoint MUST return X"), not requests.
+When a shape changes, update all callers — don't add shims.
+See `dev_communication/shared/guidance/DEVELOPMENT_PRINCIPLES.md`.
+
 ## Completion Gate (BLOCKING)
 
 No issue marked complete by Dev until ALL pass:

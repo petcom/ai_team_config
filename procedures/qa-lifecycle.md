@@ -74,6 +74,7 @@ Every iteration starts here. Do not proceed until complete.
 | Non-duplication | Uses existing patterns/services |
 | Security | No injection, proper auth, no PII leaks |
 | ADR conformance | Follows architectural decisions |
+| Content entity fields | Content entities have `departmentId`, `createdBy`, `sharedWithDepartment` (ADR-DEV-005) |
 | Contract alignment | Response shapes match contract DTOs exactly |
 | Regression | Changes don't break unrelated functionality |
 
